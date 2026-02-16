@@ -24,6 +24,14 @@ async function searchDexScreener(trendName) {
     const res = await fetch(
       `https://api.dexscreener.com/latest/dex/search?q=${encodeURIComponent(searchTerm)}`
     );
+
+    // DexScreener returns HTML when rate limited
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      console.log(`   ⏳ DexScreener rate limited, skipping`);
+      return null;
+    }
+
     const data = await res.json();
 
     if (!data.pairs || data.pairs.length === 0) return null;
