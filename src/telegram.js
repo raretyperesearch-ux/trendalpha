@@ -246,7 +246,8 @@ function formatAlertMessage({ trend, score, token }) {
   // TikTok data
   msg += `━━━━━━━━━━━━━━━━━━━━\n`;
   msg += `📱 <b>TIKTOK TREND</b>\n`;
-  msg += `<b>${escapeHtml(trend.name)}</b>\n`;
+  const cleanName = trend.name.replace("#", "");
+  msg += `<b><a href="https://www.tiktok.com/tag/${encodeURIComponent(cleanName)}">${escapeHtml(trend.name)}</a></b>\n`;
 
   // Trend direction
   const arrow = trend.trendDirection === "rising" ? "📈 Rising" :
