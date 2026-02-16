@@ -114,7 +114,7 @@ function formatAlertMessage({ trend, score, token }) {
     const name = encodeURIComponent(token.tokenName);
     const ca = token.tokenAddress;
 
-    msg += `<b>Trade:</b>\n`;
+    msg += `<b>Trade (save 40% on fees):</b>\n`;
     msg += `<a href="https://axiom.trade/@viraltok">Axiom</a>`;
     msg += ` | <a href="https://trade.padre.gg/rk/raretype">Padre</a>`;
     msg += ` | <a href="https://trojan.com/@Rare">Trojan</a>`;
