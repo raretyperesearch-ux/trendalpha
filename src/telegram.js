@@ -294,7 +294,12 @@ function formatAlertMessage({ trend, score, token }) {
     msg += `No matching token found.\n`;
     msg += `Watch pump.fun for launches.\n\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━\n`;
-    msg += `🔗 <a href="https://pump.fun">pump.fun</a>\n`;
+    msg += `🔗 <b>Trade (save 40% on fees):</b>\n`;
+    msg += `<a href="https://axiom.trade/@viraltok">Axiom</a>`;
+    msg += ` | <a href="https://trade.padre.gg/rk/raretype">Padre</a>`;
+    msg += ` | <a href="https://trojan.com/@Rare">Trojan</a>`;
+    msg += ` | <a href="https://gmgn.ai/r/viraltok">GMGN</a>`;
+    msg += ` | <a href="https://pump.fun">pump.fun</a>\n`;
   }
 
   // Last updated timestamp
