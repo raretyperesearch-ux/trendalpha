@@ -312,6 +312,62 @@ function escapeHtml(text) {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/**
+ * Send a trending digest — top trends summary
+ */
+export async function sendDigest(trends, scores) {
+  if (!bot) throw new Error("Bot not initialized");
+
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "America/New_York" });
+
+  let msg = `📊 <b>TRENDING DIGEST</b>\n`;
+  msg += `<i>${timeStr} ET</i>\n\n`;
+
+  // Top 10 trends
+  const top = scores.slice(0, 10);
+  for (let i = 0; i < top.length; i++) {
+    const { trend, score } = top[i];
+    const arrow = trend.trendDirection === "rising" ? "📈" :
+                  trend.trendDirection === "falling" ? "📉" : "➡️";
+    const cleanName = trend.name.replace("#", "");
+    msg += `${i + 1}. <a href="https://www.tiktok.com/tag/${encodeURIComponent(cleanName)}">${escapeHtml(trend.name)}</a>`;
+    msg += ` — <b>${score.total}</b>/100 ${arrow}\n`;
+    msg += `   ${formatCount(score.metrics.viewsPerHour)} v/hr | ${formatCount(trend.videoCount)} videos`;
+    if (trend.rank) msg += ` | #${trend.rank}`;
+    msg += `\n\n`;
+  }
+
+  msg += `━━━━━━━━━━━━━━━━━━━━\n`;
+  msg += `🔗 <b>Trade (save 40% on fees):</b>\n`;
+  msg += `<a href="https://axiom.trade/@viraltok">Axiom</a>`;
+  msg += ` | <a href="https://trade.padre.gg/rk/raretype">Padre</a>`;
+  msg += ` | <a href="https://trojan.com/@Rare">Trojan</a>`;
+  msg += ` | <a href="https://gmgn.ai/r/viraltok">GMGN</a>\n`;
+  msg += `\n<i>Next digest in 3 hours</i>`;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await bot.api.sendMessage(config.telegram.channelId, msg, {
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+      });
+      console.log(`📊 Digest sent — ${top.length} trends`);
+      return true;
+    } catch (err) {
+      if (err.message?.includes("429")) {
+        const match = err.message.match(/retry after (\d+)/);
+        const waitSec = match ? parseInt(match[1]) + 1 : 5 * attempt;
+        await sleep(waitSec * 1000);
+      } else {
+        console.error("❌ Digest send failed:", err.message);
+        return false;
+      }
+    }
+  }
+  return false;
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

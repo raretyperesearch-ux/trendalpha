@@ -1,13 +1,8 @@
 // ============================================================
 // TRENDALPHA — MAIN ENTRY POINT (Production)
 // ============================================================
-// Runs a scan every 15 minutes:
-//   1. Fetch trending TikTok hashtags from Creative Center
-//   2. Filter noise (non-tokenizable, generic, non-English)
-//   3. Score each trend (views/hr + videos + acceleration)
-//   4. Check if a token exists on DexScreener/Birdeye
-//   5. Send alerts to Telegram for high-scoring trends
-//   6. Store everything in Supabase for tracking
+// Scans every 15 min, digest every 3 hours,
+// re-alerts on big score jumps
 // ============================================================
 
 import cron from "node-cron";
@@ -15,12 +10,13 @@ import { config } from "./config.js";
 import { fetchTrends } from "./tiktok.js";
 import { scoreTrend } from "./scoring.js";
 import { findToken } from "./tokens.js";
-import { initBot, sendAlert } from "./telegram.js";
+import { initBot, sendAlert, sendDigest } from "./telegram.js";
 import {
   initDB,
   saveTrendSnapshot,
   getPreviousSnapshot,
   wasAlertedRecently,
+  getLastAlertScore,
   recordAlert,
 } from "./db.js";
 
@@ -63,6 +59,7 @@ function isNoise(trend) {
 
 const MAX_ALERTS_PER_SCAN = 5;
 const DELAY_BETWEEN_ALERTS_MS = 3000;
+const SCORE_JUMP_THRESHOLD = 10; // re-alert if score jumps 10+ points
 
 async function runScan() {
   const startTime = Date.now();
@@ -101,10 +98,18 @@ async function runScan() {
       if (score.total < config.scan.minScore) continue;
       if (alertsSent >= MAX_ALERTS_PER_SCAN) continue;
 
+      // Check if already alerted recently
       const alreadyAlerted = await wasAlertedRecently(trend.id);
+
       if (alreadyAlerted) {
-        console.log(`   ⏭️  Already alerted for "${trend.name}" — skipping`);
-        continue;
+        // BUT — re-alert if score jumped significantly
+        const lastScore = await getLastAlertScore(trend.id);
+        if (lastScore !== null && score.total >= lastScore + SCORE_JUMP_THRESHOLD) {
+          console.log(`   🚀 Score jumped from ${lastScore} → ${score.total}! Re-alerting...`);
+        } else {
+          console.log(`   ⏭️  Already alerted for "${trend.name}" — skipping`);
+          continue;
+        }
       }
 
       const token = await findToken(trend.name);
@@ -131,6 +136,38 @@ async function runScan() {
 }
 
 // ----------------------------------------------------------
+// DIGEST — post top trends summary every 3 hours
+// ----------------------------------------------------------
+
+async function runDigest() {
+  console.log(`\n📊 RUNNING DIGEST — ${new Date().toISOString()}\n`);
+
+  try {
+    const trends = await fetchTrends();
+    if (trends.length === 0) {
+      console.log("❌ No trends for digest");
+      return;
+    }
+
+    // Score all non-noise trends
+    const scored = [];
+    for (const trend of trends) {
+      if (isNoise(trend)) continue;
+      const prevSnapshot = await getPreviousSnapshot(trend.id);
+      const score = scoreTrend(trend, prevSnapshot);
+      scored.push({ trend, score });
+    }
+
+    // Sort by score descending
+    scored.sort((a, b) => b.score.total - a.score.total);
+
+    await sendDigest(scored.map(s => s.trend), scored);
+  } catch (err) {
+    console.error("❌ DIGEST FAILED:", err);
+  }
+}
+
+// ----------------------------------------------------------
 // STARTUP
 // ----------------------------------------------------------
 
@@ -150,15 +187,18 @@ async function main() {
     onStart: () => console.log("🤖 Telegram bot is online"),
   });
 
+  // Run first scan immediately
   console.log("🚀 Running initial scan...\n");
   await runScan();
 
-  const cronExpr = `*/${config.scan.intervalMinutes} * * * *`;
-  cron.schedule(cronExpr, () => { runScan(); });
+  // Schedule scans every 15 minutes
+  const scanCron = `*/${config.scan.intervalMinutes} * * * *`;
+  cron.schedule(scanCron, () => { runScan(); });
+  console.log(`⏰ Scans: every ${config.scan.intervalMinutes} minutes`);
 
-  console.log(
-    `⏰ Scheduled: scanning every ${config.scan.intervalMinutes} minutes\n`
-  );
+  // Schedule digest every 3 hours (at :30 to offset from scans)
+  cron.schedule("30 */3 * * *", () => { runDigest(); });
+  console.log(`📊 Digest: every 3 hours\n`);
 }
 
 function sleep(ms) {

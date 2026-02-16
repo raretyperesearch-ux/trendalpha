@@ -125,6 +125,27 @@ export async function recordAlert(trend, score, token) {
   }
 }
 
+/**
+ * Get the score from the last alert sent for this trend
+ * Used for re-alert on big jumps
+ */
+export async function getLastAlertScore(trendId) {
+  try {
+    const { data, error } = await supabase
+      .from("alerts_sent")
+      .select("score")
+      .eq("trend_id", trendId)
+      .order("sent_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error || !data) return null;
+    return data.score;
+  } catch {
+    return null;
+  }
+}
+
 // ----------------------------------------------------------
 // HIT RATE — track performance over time
 // ----------------------------------------------------------

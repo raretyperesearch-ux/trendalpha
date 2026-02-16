@@ -8,7 +8,7 @@ import { fetchTrends } from "../tiktok.js";
 import { scoreTrend } from "../scoring.js";
 import { findToken } from "../tokens.js";
 import { initBot, sendAlert } from "../telegram.js";
-import { initDB, saveTrendSnapshot, getPreviousSnapshot, wasAlertedRecently, recordAlert } from "../db.js";
+import { initDB, saveTrendSnapshot, getPreviousSnapshot, wasAlertedRecently, getLastAlertScore, recordAlert } from "../db.js";
 
 // ----------------------------------------------------------
 // NOISE FILTER — skip trends that will never get tokenized
@@ -106,8 +106,13 @@ async function main() {
 
       const alreadyAlerted = await wasAlertedRecently(trend.id);
       if (alreadyAlerted) {
-        console.log(`   ⏭️  Already alerted — skipping`);
-        continue;
+        const lastScore = await getLastAlertScore(trend.id);
+        if (lastScore !== null && score.total >= lastScore + 10) {
+          console.log(`   🚀 Score jumped from ${lastScore} → ${score.total}! Re-alerting...`);
+        } else {
+          console.log(`   ⏭️  Already alerted — skipping`);
+          continue;
+        }
       }
 
       const token = await findToken(trend.name);
