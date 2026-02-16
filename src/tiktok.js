@@ -130,14 +130,16 @@ export async function fetchTrends() {
   console.log("📱 Scanning TikTok for trends...");
 
   try {
-    // Fetch multiple pages to get a wide view
-    // Page 1 = top 50, Page 2 = 51-100
-    const [page1, page2] = await Promise.all([
-      fetchTrendingHashtags(1, 50),
-      fetchTrendingHashtags(2, 50),
+    // Fetch all 5 pages to get the full top 100
+    const [page1, page2, page3, page4, page5] = await Promise.all([
+      fetchTrendingHashtags(1, 20),
+      fetchTrendingHashtags(2, 20),
+      fetchTrendingHashtags(3, 20),
+      fetchTrendingHashtags(4, 20),
+      fetchTrendingHashtags(5, 20),
     ]);
 
-    const allRaw = [...page1, ...page2];
+    const allRaw = [...page1, ...page2, ...page3, ...page4, ...page5];
     console.log(`  📊 Got ${allRaw.length} trending hashtags from TikTok`);
 
     // Transform into our format

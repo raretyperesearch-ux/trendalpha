@@ -91,22 +91,15 @@ function buildRefreshKeyboard(hashtagName) {
  */
 async function fetchSingleTrend(hashtagName) {
   try {
-    // Fetch page 1 and 2 to find it
-    const results = await fetchTrendingPage(1, 50);
-    let match = results.find(
-      (t) => t.hashtag_name.toLowerCase() === hashtagName.toLowerCase()
-    );
-
-    if (!match) {
-      const results2 = await fetchTrendingPage(2, 50);
-      match = results2.find(
+    // Search all 5 pages to find it
+    for (let page = 1; page <= 5; page++) {
+      const results = await fetchTrendingPage(page, 20);
+      const match = results.find(
         (t) => t.hashtag_name.toLowerCase() === hashtagName.toLowerCase()
       );
+      if (match) return transformHashtag(match);
     }
-
-    if (!match) return null;
-
-    return transformHashtag(match);
+    return null;
   } catch (err) {
     console.error("❌ fetchSingleTrend failed:", err.message);
     return null;
