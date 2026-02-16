@@ -22,6 +22,6 @@ export const config = {
   },
   scan: {
     intervalMinutes: parseInt(optional("SCAN_INTERVAL_MINUTES", "15")),
-    minScore: parseInt(optional("MIN_SCORE_TO_ALERT", "60")),
+    minScore: parseInt(optional("MIN_SCORE_TO_ALERT", "70")),
   },
 };

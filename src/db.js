@@ -80,17 +80,17 @@ export async function getPreviousSnapshot(trendId) {
 
 /**
  * Check if we've already alerted for this trend recently
- * (prevents spam — only alert once per trend per 6 hours)
+ * (prevents spam — only alert once per trend per 3 hours)
  */
 export async function wasAlertedRecently(trendId) {
   try {
-    const sixHoursAgo = new Date(Date.now() - 6 * 3600000).toISOString();
+    const threeHoursAgo = new Date(Date.now() - 3 * 3600000).toISOString();
 
     const { data, error } = await supabase
       .from("alerts_sent")
       .select("id")
       .eq("trend_id", trendId)
-      .gte("sent_at", sixHoursAgo)
+      .gte("sent_at", threeHoursAgo)
       .limit(1);
 
     if (error) throw error;
