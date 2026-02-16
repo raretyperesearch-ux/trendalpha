@@ -89,13 +89,26 @@ async function runScan() {
       const icon = score.total >= config.scan.minScore ? "🔥" : "  ";
       const arrow = trend.trendDirection === "rising" ? "📈" :
                     trend.trendDirection === "falling" ? "📉" : "➡️";
-      console.log(
-        `${icon} [${score.total}/100] ${trend.name} — ` +
-        `${score.metrics.viewsPerHour.toLocaleString()} v/hr, ` +
-        `${trend.videoCount.toLocaleString()} videos ${arrow}`
-      );
+      const isNewEntry = trend.rankChangeType === 3;
 
-      if (score.total < config.scan.minScore) continue;
+      if (isNewEntry) {
+        console.log(
+          `🆕 [${score.total}/100] ${trend.name} — NEW ENTRY TO TOP 100 — ` +
+          `${score.metrics.viewsPerHour.toLocaleString()} v/hr, ` +
+          `${trend.videoCount.toLocaleString()} videos ${arrow}`
+        );
+      } else {
+        console.log(
+          `${icon} [${score.total}/100] ${trend.name} — ` +
+          `${score.metrics.viewsPerHour.toLocaleString()} v/hr, ` +
+          `${trend.videoCount.toLocaleString()} videos ${arrow}`
+        );
+      }
+
+      // NEW ENTRIES always get alerted (minimum score 50)
+      // Regular trends need to meet the normal threshold
+      const meetsThreshold = isNewEntry ? score.total >= 50 : score.total >= config.scan.minScore;
+      if (!meetsThreshold) continue;
       if (alertsSent >= MAX_ALERTS_PER_SCAN) continue;
 
       // Check if already alerted recently
@@ -118,7 +131,7 @@ async function runScan() {
         await sleep(DELAY_BETWEEN_ALERTS_MS);
       }
 
-      const sent = await sendAlert({ trend, score, token });
+      const sent = await sendAlert({ trend, score, token, isNewEntry });
       if (sent) {
         alertsSent++;
         await recordAlert(trend, score, token);

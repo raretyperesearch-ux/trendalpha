@@ -91,13 +91,24 @@ async function main() {
     const icon = score.total >= config.scan.minScore ? "🔥" : "  ";
     const arrow = trend.trendDirection === "rising" ? "📈" :
                   trend.trendDirection === "falling" ? "📉" : "➡️";
-    console.log(
-      `${icon} [${score.total}/100] ${trend.name} — ` +
-      `${score.metrics.viewsPerHour.toLocaleString()} v/hr, ` +
-      `${trend.videoCount.toLocaleString()} videos ${arrow}`
-    );
+    const isNewEntry = trend.rankChangeType === 3;
 
-    if (score.total >= config.scan.minScore) {
+    if (isNewEntry) {
+      console.log(
+        `🆕 [${score.total}/100] ${trend.name} — NEW ENTRY TO TOP 100 — ` +
+        `${score.metrics.viewsPerHour.toLocaleString()} v/hr, ` +
+        `${trend.videoCount.toLocaleString()} videos ${arrow}`
+      );
+    } else {
+      console.log(
+        `${icon} [${score.total}/100] ${trend.name} — ` +
+        `${score.metrics.viewsPerHour.toLocaleString()} v/hr, ` +
+        `${trend.videoCount.toLocaleString()} videos ${arrow}`
+      );
+    }
+
+    const meetsThreshold = isNewEntry ? score.total >= 50 : score.total >= config.scan.minScore;
+    if (meetsThreshold) {
       // Cap alerts per scan
       if (alertsSent >= MAX_ALERTS_PER_SCAN) {
         console.log(`   ⏸️  Max alerts (${MAX_ALERTS_PER_SCAN}) reached — skipping rest`);
@@ -123,7 +134,7 @@ async function main() {
         await sleep(DELAY_BETWEEN_ALERTS_MS);
       }
 
-      const sent = await sendAlert({ trend, score, token });
+      const sent = await sendAlert({ trend, score, token, isNewEntry });
       if (sent) {
         alertsSent++;
         await recordAlert(trend, score, token);

@@ -190,10 +190,10 @@ function transformHashtag(item) {
 /**
  * Send alert with refresh button
  */
-export async function sendAlert({ trend, score, token }) {
+export async function sendAlert({ trend, score, token, isNewEntry = false }) {
   if (!bot) throw new Error("Bot not initialized — call initBot() first");
 
-  const message = formatAlertMessage({ trend, score, token });
+  const message = formatAlertMessage({ trend, score, token, isNewEntry });
 
   // Extract hashtag name for refresh callback
   const hashtagName = trend.name.replace("#", "");
@@ -225,7 +225,7 @@ export async function sendAlert({ trend, score, token }) {
   return false;
 }
 
-function formatAlertMessage({ trend, score, token }) {
+function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
   const conviction = getConviction(score.total);
   const bars = "█".repeat(Math.round(score.total / 10)) +
                "░".repeat(10 - Math.round(score.total / 10));
@@ -237,6 +237,9 @@ function formatAlertMessage({ trend, score, token }) {
   let msg = "";
 
   // Header
+  if (isNewEntry) {
+    msg += `🆕 <b>NEW TREND JUST ENTERED TOP 100</b>\n\n`;
+  }
   msg += `${conviction.emoji} <b>TIKTOK VIRAL TRENDS BOT</b>\n\n`;
 
   // Score
