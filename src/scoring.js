@@ -1,118 +1,92 @@
 // ============================================================
-// SCORING ENGINE
+// SCORING ENGINE — v2 (Creative Center Data)
 // ============================================================
-// Two metrics that matter:
-//   1. Views per hour — how fast is it blowing up?
-//   2. Video count — how many creators jumped on it?
+// Recalibrated for real TikTok Creative Center metrics
 //
-// NO AI OPINIONS. Just math. You're the meme brain.
+// Score 0-100:
+//   Views/hour velocity:  0-30 points
+//   Video count:          0-30 points
+//   Trend acceleration:   0-20 points
+//   Rank momentum:        0-20 points
 // ============================================================
 
 import { getViewsPerHour, getHoursActive } from "./tiktok.js";
 
-/**
- * Score a trend from 0-100 based on viral signals
- *
- * Breakdown:
- *   - Views/hour velocity:  0-40 points
- *   - Video count:          0-40 points
- *   - Freshness bonus:      0-10 points (newer = better)
- *   - Acceleration bonus:   0-10 points (growing faster = better)
- */
 export function scoreTrend(trend, previousSnapshot = null) {
   const viewsPerHour = getViewsPerHour(trend);
   const hoursActive = getHoursActive(trend);
 
-  // ---- VIEWS PER HOUR (0-40 pts) ----
-  // Thresholds based on what actually goes viral on TikTok:
-  //   < 50K/hr  = meh
-  //   50-200K   = heating up
-  //   200-500K  = on fire
-  //   500K-1M   = viral
-  //   > 1M      = mega viral
+  // ---- VIEWS PER HOUR (0-30 pts) ----
   let velocityScore;
-  if (viewsPerHour >= 1_000_000) velocityScore = 40;
-  else if (viewsPerHour >= 500_000) velocityScore = 35;
-  else if (viewsPerHour >= 200_000) velocityScore = 28;
-  else if (viewsPerHour >= 100_000) velocityScore = 20;
-  else if (viewsPerHour >= 50_000) velocityScore = 12;
-  else if (viewsPerHour >= 20_000) velocityScore = 6;
-  else velocityScore = Math.round((viewsPerHour / 20_000) * 6);
+  if (viewsPerHour >= 2_000_000) velocityScore = 30;
+  else if (viewsPerHour >= 1_000_000) velocityScore = 26;
+  else if (viewsPerHour >= 500_000) velocityScore = 22;
+  else if (viewsPerHour >= 200_000) velocityScore = 17;
+  else if (viewsPerHour >= 100_000) velocityScore = 12;
+  else if (viewsPerHour >= 50_000) velocityScore = 7;
+  else velocityScore = Math.round((viewsPerHour / 50_000) * 7);
 
-  // ---- VIDEO COUNT (0-40 pts) ----
-  // How many creators are using this sound/trend:
-  //   < 100     = just starting
-  //   100-500   = gaining traction
-  //   500-1000  = strong adoption
-  //   1000-2000 = very strong
-  //   > 2000    = massive
+  // ---- VIDEO COUNT (0-30 pts) ----
   let videoScore;
-  if (trend.videoCount >= 2000) videoScore = 40;
-  else if (trend.videoCount >= 1000) videoScore = 34;
-  else if (trend.videoCount >= 500) videoScore = 26;
-  else if (trend.videoCount >= 200) videoScore = 18;
-  else if (trend.videoCount >= 100) videoScore = 10;
-  else videoScore = Math.round((trend.videoCount / 100) * 10);
+  if (trend.videoCount >= 50_000) videoScore = 30;
+  else if (trend.videoCount >= 20_000) videoScore = 26;
+  else if (trend.videoCount >= 10_000) videoScore = 22;
+  else if (trend.videoCount >= 5_000) videoScore = 17;
+  else if (trend.videoCount >= 2_000) videoScore = 12;
+  else if (trend.videoCount >= 1_000) videoScore = 7;
+  else videoScore = Math.round((trend.videoCount / 1_000) * 7);
 
-  // ---- FRESHNESS BONUS (0-10 pts) ----
-  // Newer trends = more opportunity
-  //   < 2 hrs = max bonus
-  //   2-6 hrs = good
-  //   6-12 hrs = ok
-  //   > 12 hrs = stale
-  let freshnessScore;
-  if (hoursActive <= 2) freshnessScore = 10;
-  else if (hoursActive <= 4) freshnessScore = 8;
-  else if (hoursActive <= 6) freshnessScore = 6;
-  else if (hoursActive <= 12) freshnessScore = 3;
-  else freshnessScore = 1;
-
-  // ---- ACCELERATION BONUS (0-10 pts) ----
-  // If we have a previous snapshot, check if it's speeding up
-  let accelerationScore = 5; // default neutral
-  if (previousSnapshot) {
-    const prevViewsPerHour = previousSnapshot.viewsPerHour || 0;
-    const prevVideoCount = previousSnapshot.videoCount || 0;
-
-    const viewsAccel = viewsPerHour / Math.max(1, prevViewsPerHour);
-    const videoAccel = trend.videoCount / Math.max(1, prevVideoCount);
-
-    // Growing 2x+ between scans = strong acceleration
-    if (viewsAccel >= 2 && videoAccel >= 1.5) accelerationScore = 10;
-    else if (viewsAccel >= 1.5 || videoAccel >= 1.3) accelerationScore = 7;
-    else if (viewsAccel >= 1.1) accelerationScore = 5;
-    else if (viewsAccel < 0.8) accelerationScore = 2; // slowing down
-    else accelerationScore = 3; // flatting
+  // ---- TREND ACCELERATION (0-20 pts) ----
+  let accelerationScore = 10;
+  if (trend.acceleration) {
+    if (trend.acceleration >= 1.5) accelerationScore = 20;
+    else if (trend.acceleration >= 1.2) accelerationScore = 16;
+    else if (trend.acceleration >= 1.05) accelerationScore = 12;
+    else if (trend.acceleration >= 0.95) accelerationScore = 8;
+    else if (trend.acceleration >= 0.8) accelerationScore = 4;
+    else accelerationScore = 2;
+  }
+  if (trend.trendDirection === "rising") {
+    accelerationScore = Math.max(accelerationScore, 14);
+  } else if (trend.trendDirection === "falling") {
+    accelerationScore = Math.min(accelerationScore, 6);
   }
 
-  const totalScore = Math.min(
-    100,
-    velocityScore + videoScore + freshnessScore + accelerationScore
-  );
+  // ---- RANK MOMENTUM (0-20 pts) ----
+  let rankScore = 10;
+  if (trend.rankChange && trend.rankChangeType) {
+    if (trend.rankChangeType === 3) rankScore = 20;        // NEW entry
+    else if (trend.rankChangeType === 1) {                  // Moving UP
+      if (trend.rankChange >= 20) rankScore = 18;
+      else if (trend.rankChange >= 10) rankScore = 15;
+      else if (trend.rankChange >= 5) rankScore = 12;
+      else rankScore = 10;
+    } else if (trend.rankChangeType === 2) rankScore = 4;   // Moving DOWN
+    else rankScore = 8;                                      // Same
+  }
+
+  if (previousSnapshot) {
+    const prevVPH = previousSnapshot.viewsPerHour || 0;
+    if (prevVPH > 0) {
+      const growth = viewsPerHour / prevVPH;
+      if (growth >= 2) rankScore = Math.max(rankScore, 18);
+      else if (growth >= 1.5) rankScore = Math.max(rankScore, 14);
+    }
+  }
+
+  const totalScore = Math.min(100, velocityScore + videoScore + accelerationScore + rankScore);
 
   return {
     total: totalScore,
-    breakdown: {
-      velocity: velocityScore,
-      videoCount: videoScore,
-      freshness: freshnessScore,
-      acceleration: accelerationScore,
-    },
-    metrics: {
-      viewsPerHour,
-      videoCount: trend.videoCount,
-      hoursActive,
-    },
+    breakdown: { velocity: velocityScore, videoCount: videoScore, acceleration: accelerationScore, rank: rankScore },
+    metrics: { viewsPerHour, videoCount: trend.videoCount, hoursActive },
   };
 }
 
-/**
- * Get a human-readable conviction label
- */
 export function getConviction(score) {
-  if (score >= 90) return { label: "EXTREME", emoji: "🔴" };
-  if (score >= 80) return { label: "HIGH", emoji: "🟠" };
-  if (score >= 70) return { label: "MEDIUM", emoji: "🟡" };
-  if (score >= 60) return { label: "LOW", emoji: "⚪" };
+  if (score >= 85) return { label: "EXTREME", emoji: "🔴" };
+  if (score >= 75) return { label: "HIGH", emoji: "🟠" };
+  if (score >= 65) return { label: "MEDIUM", emoji: "🟡" };
+  if (score >= 55) return { label: "LOW", emoji: "⚪" };
   return { label: "NOISE", emoji: "💤" };
 }

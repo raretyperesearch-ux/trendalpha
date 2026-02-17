@@ -141,32 +141,14 @@ async function fetchTrendingSongs(page = 1, limit = 20) {
     for (const path of paths) {
       try {
         const data = await apiFetch(path);
-        // Debug: log raw response structure
-        console.log(`    🔍 Song API response keys: ${JSON.stringify(Object.keys(data))}`);
-        if (data.data) {
-          console.log(`    🔍 Song data keys: ${JSON.stringify(Object.keys(data.data))}`);
+        if (data.code === 0 && data.data?.sound_list?.length > 0) {
+          return data.data.sound_list;
         }
         if (data.code === 0 && data.data?.list?.length > 0) {
           return data.data.list;
         }
-        if (data.code === 0 && data.data?.songs?.length > 0) {
-          return data.data.songs;
-        }
-        if (data.code === 0 && data.data?.music_list?.length > 0) {
-          return data.data.music_list;
-        }
-        // Try any array in data
-        if (data.code === 0 && data.data) {
-          for (const key of Object.keys(data.data)) {
-            if (Array.isArray(data.data[key]) && data.data[key].length > 0) {
-              console.log(`    🔍 Found song data in field: ${key}`);
-              return data.data[key];
-            }
-          }
-        }
-        console.log(`    ❌ Song API returned code: ${data.code}, msg: ${data.msg || 'none'}`);
       } catch (e) {
-        console.log(`    ❌ Song path failed: ${e.message}`);
+        // try next path
       }
     }
 
@@ -180,7 +162,7 @@ async function fetchTrendingSongs(page = 1, limit = 20) {
 
 /**
  * Transform a trending song into our trend format
- * Field names are defensive since API docs are sparse
+ * Songs don't have video_views/publish_cnt — we use rank + trend curve
  */
 function transformSong(item) {
   const trendCurve = item.trend || [];
@@ -200,20 +182,18 @@ function transformSong(item) {
     else if (last < prev * 0.9) trendDirection = "falling";
   }
 
-  // Try multiple possible field names
-  const songTitle = item.song_title || item.title || item.clip_title || item.name || "Unknown Sound";
-  const artist = item.author || item.artist || item.creator || item.nick_name || "";
-  const songId = item.song_id || item.clip_id || item.id || item.music_id || Math.random().toString(36).slice(2);
-  const views = item.video_views || item.total_video_views || 0;
-  const videos = item.publish_cnt || item.video_cnt || item.usage_count || 0;
+  const songTitle = item.title || item.song_title || "Unknown Sound";
+  const artist = item.author || "";
+  const songId = item.clip_id || item.song_id || Math.random().toString(36).slice(2);
+  const songLink = item.link || "";
 
   return {
     id: `song-${songId}`,
     name: songTitle,
     artist: artist,
     type: "song",
-    totalViews: views,
-    videoCount: videos,
+    totalViews: 0, // Songs don't provide view counts
+    videoCount: 0, // Songs don't provide video counts
     rank: item.rank || 999,
     rankChange: item.rank_diff || 0,
     rankChangeType: item.rank_diff_type,
@@ -222,6 +202,8 @@ function transformSong(item) {
     trendCurve,
     peakValue: Math.max(...trendCurve.map((t) => t.value || 0), 0),
     currentValue: trendCurve[trendCurve.length - 1]?.value || 0,
+    songLink: songLink,
+    duration: item.duration || 0,
     discoveredAt: new Date().toISOString(),
     earliestVideo: trendCurve[0]?.time || 0,
   };
@@ -255,12 +237,6 @@ export async function fetchTrends() {
     }
 
     console.log(`  🎵 Got ${allSongs.length} trending songs from TikTok`);
-
-    // Log first raw song for field debugging (remove after confirming)
-    if (allSongs.length > 0) {
-      console.log(`  🔍 Raw song sample keys: ${Object.keys(allSongs[0]).join(", ")}`);
-      console.log(`  🔍 Sample song: ${JSON.stringify(allSongs[0]).slice(0, 300)}`);
-    }
 
     // Transform into our format
     const hashtagTrends = allHashtags.map(transformHashtag);

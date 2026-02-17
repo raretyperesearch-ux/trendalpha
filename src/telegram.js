@@ -262,9 +262,15 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
 
   // Key metrics
   msg += `<code>`;
-  msg += `⚡ Views/hour:   ${viewsPerHourStr}\n`;
-  msg += `👁 Total views:   ${formatCount(trend.totalViews)}\n`;
-  msg += `🎬 Videos made:   ${formatCount(trend.videoCount)}\n`;
+  if (trend.type === "song") {
+    msg += `🎤 Artist:       ${escapeHtml(trend.artist || "Original Sound")}\n`;
+    msg += `📊 Song Rank:    #${trend.rank}\n`;
+    if (trend.duration) msg += `⏱ Duration:     ${trend.duration}s\n`;
+  } else {
+    msg += `⚡ Views/hour:   ${viewsPerHourStr}\n`;
+    msg += `👁 Total views:   ${formatCount(trend.totalViews)}\n`;
+    msg += `🎬 Videos made:   ${formatCount(trend.videoCount)}\n`;
+  }
   msg += `</code>\n`;
   msg += `━━━━━━━━━━━━━━━━━━━━\n\n`;
 
@@ -340,8 +346,12 @@ export async function sendDigest(trends, scores) {
       msg += `${i + 1}. <a href="https://www.tiktok.com/tag/${encodeURIComponent(cleanName)}">${escapeHtml(trend.name)}</a>`;
     }
     msg += ` — <b>${score.total}</b>/100 ${arrow}\n`;
-    msg += `   ${formatCount(score.metrics.viewsPerHour)} v/hr | ${formatCount(trend.videoCount)} videos`;
-    if (trend.rank) msg += ` | #${trend.rank}`;
+    if (trend.type === "song") {
+      msg += `   ${escapeHtml(trend.artist || "Original Sound")} | #${trend.rank}`;
+    } else {
+      msg += `   ${formatCount(score.metrics.viewsPerHour)} v/hr | ${formatCount(trend.videoCount)} videos`;
+      if (trend.rank) msg += ` | #${trend.rank}`;
+    }
     msg += `\n\n`;
   }
 
