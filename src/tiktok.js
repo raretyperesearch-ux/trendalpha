@@ -133,8 +133,7 @@ async function fetchTrendingSongs(page = 1, limit = 20) {
   try {
     // Try /song endpoint first, fallback to /music
     const paths = [
-      `/api/trending/song?period=7&limit=${limit}&page=${page}&country_code=US`,
-      `/api/trending/music?period=7&limit=${limit}&page=${page}&country_code=US`,
+      `/api/trending/song?period=7&limit=${limit}&page=${page}&rank_type=popular&country=US`,
     ];
     
     console.log(`    🎵 Fetching trending songs (page ${page})...`);
