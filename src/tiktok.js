@@ -232,9 +232,7 @@ export async function fetchTrends() {
       allSongs.push(...page);
       if (p < 3) await new Promise(r => setTimeout(r, 500));
     }
-    const allSongs = [...s1, ...s2, ...s3];
 
-    console.log(`  📊 Got ${allHashtags.length} trending hashtags from TikTok`);
     console.log(`  🎵 Got ${allSongs.length} trending songs from TikTok`);
 
     // Log first raw song for field debugging (remove after confirming)
