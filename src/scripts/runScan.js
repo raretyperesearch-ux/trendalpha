@@ -43,18 +43,23 @@ const NON_ENGLISH_PATTERNS = [
 function isNoise(trend) {
   const name = trend.name.replace("#", "").toLowerCase();
 
-  // Skip known generic hashtags
-  if (SKIP_HASHTAGS.has(name)) return true;
-
-  // Skip non-English patterns
-  for (const pattern of NON_ENGLISH_PATTERNS) {
-    if (pattern.test(trend.name)) return true;
+  // Hashtag-specific filters
+  if (trend.type === "hashtag") {
+    if (SKIP_HASHTAGS.has(name)) return true;
+    for (const pattern of NON_ENGLISH_PATTERNS) {
+      if (pattern.test(trend.name)) return true;
+    }
+    if (name.length > 25) return true;
   }
 
-  // Skip if hashtag is too long (usually non-English compound words)
-  if (name.length > 25) return true;
+  // Song-specific filters
+  if (trend.type === "song") {
+    for (const pattern of NON_ENGLISH_PATTERNS) {
+      if (pattern.test(trend.name)) return true;
+    }
+  }
 
-  // Skip if trend is falling — we want rising or stable
+  // Universal: skip falling trends
   if (trend.trendDirection === "falling") return true;
 
   return false;

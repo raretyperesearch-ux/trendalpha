@@ -241,9 +241,16 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
 
   // TikTok data
   msg += `━━━━━━━━━━━━━━━━━━━━\n`;
-  msg += `📱 <b>TIKTOK TREND</b>\n`;
-  const cleanName = trend.name.replace("#", "");
-  msg += `<b><a href="https://www.tiktok.com/tag/${encodeURIComponent(cleanName)}">${escapeHtml(trend.name)}</a></b>\n`;
+  if (trend.type === "song") {
+    msg += `🎵 <b>TIKTOK TRENDING SOUND</b>\n`;
+    const songName = escapeHtml(trend.name);
+    msg += `<b>${songName}</b>\n`;
+    if (trend.artist) msg += `by ${escapeHtml(trend.artist)}\n`;
+  } else {
+    msg += `📱 <b>TIKTOK TREND</b>\n`;
+    const cleanName = trend.name.replace("#", "");
+    msg += `<b><a href="https://www.tiktok.com/tag/${encodeURIComponent(cleanName)}">${escapeHtml(trend.name)}</a></b>\n`;
+  }
 
   // Trend direction
   const arrow = trend.trendDirection === "rising" ? "📈 Rising" :
@@ -326,8 +333,12 @@ export async function sendDigest(trends, scores) {
     const { trend, score } = top[i];
     const arrow = trend.trendDirection === "rising" ? "📈" :
                   trend.trendDirection === "falling" ? "📉" : "➡️";
-    const cleanName = trend.name.replace("#", "");
-    msg += `${i + 1}. <a href="https://www.tiktok.com/tag/${encodeURIComponent(cleanName)}">${escapeHtml(trend.name)}</a>`;
+    if (trend.type === "song") {
+      msg += `${i + 1}. 🎵 ${escapeHtml(trend.name)}`;
+    } else {
+      const cleanName = trend.name.replace("#", "");
+      msg += `${i + 1}. <a href="https://www.tiktok.com/tag/${encodeURIComponent(cleanName)}">${escapeHtml(trend.name)}</a>`;
+    }
     msg += ` — <b>${score.total}</b>/100 ${arrow}\n`;
     msg += `   ${formatCount(score.metrics.viewsPerHour)} v/hr | ${formatCount(trend.videoCount)} videos`;
     if (trend.rank) msg += ` | #${trend.rank}`;

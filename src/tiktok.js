@@ -4,8 +4,8 @@
 // Pulls REAL trending data from TikTok's Creative Center
 // No keyword guessing — detects what's actually going viral
 //
-// Endpoint: /api/trending/hashtag
-// Data: hashtag name, video views, publish count, 7-day trend
+// Endpoints: /api/trending/hashtag + /api/trending/song
+// Data: hashtag/song name, video views, publish count, 7-day trend
 // ============================================================
 
 import https from "node:https";
@@ -123,6 +123,91 @@ function transformHashtag(item) {
 }
 
 // ----------------------------------------------------------
+// TRENDING SONGS/SOUNDS
+// ----------------------------------------------------------
+
+/**
+ * Fetch trending songs from TikTok Creative Center
+ */
+async function fetchTrendingSongs(page = 1, limit = 20) {
+  try {
+    // Try /song endpoint first, fallback to /music
+    const paths = [
+      `/api/trending/song?period=7&limit=${limit}&page=${page}&country_code=US`,
+      `/api/trending/music?period=7&limit=${limit}&page=${page}&country_code=US`,
+    ];
+    
+    console.log(`    🎵 Fetching trending songs (page ${page})...`);
+    
+    for (const path of paths) {
+      try {
+        const data = await apiFetch(path);
+        if (data.code === 0 && data.data?.list?.length > 0) {
+          return data.data.list;
+        }
+      } catch (e) {
+        // try next path
+      }
+    }
+
+    console.error(`    ❌ Songs API: no data from any endpoint`);
+    return [];
+  } catch (err) {
+    console.error(`    ❌ Trending songs fetch failed:`, err.message);
+    return [];
+  }
+}
+
+/**
+ * Transform a trending song into our trend format
+ * Field names are defensive since API docs are sparse
+ */
+function transformSong(item) {
+  const trendCurve = item.trend || [];
+
+  let acceleration = 1;
+  if (trendCurve.length >= 4) {
+    const recent = trendCurve.slice(-2).reduce((s, t) => s + t.value, 0) / 2;
+    const earlier = trendCurve.slice(0, 2).reduce((s, t) => s + t.value, 0) / 2;
+    acceleration = earlier > 0 ? recent / earlier : 1;
+  }
+
+  let trendDirection = "stable";
+  if (trendCurve.length >= 2) {
+    const last = trendCurve[trendCurve.length - 1]?.value || 0;
+    const prev = trendCurve[trendCurve.length - 2]?.value || 0;
+    if (last > prev * 1.1) trendDirection = "rising";
+    else if (last < prev * 0.9) trendDirection = "falling";
+  }
+
+  // Try multiple possible field names
+  const songTitle = item.song_title || item.title || item.clip_title || item.name || "Unknown Sound";
+  const artist = item.author || item.artist || item.creator || item.nick_name || "";
+  const songId = item.song_id || item.clip_id || item.id || item.music_id || Math.random().toString(36).slice(2);
+  const views = item.video_views || item.total_video_views || 0;
+  const videos = item.publish_cnt || item.video_cnt || item.usage_count || 0;
+
+  return {
+    id: `song-${songId}`,
+    name: songTitle,
+    artist: artist,
+    type: "song",
+    totalViews: views,
+    videoCount: videos,
+    rank: item.rank || 999,
+    rankChange: item.rank_diff || 0,
+    rankChangeType: item.rank_diff_type,
+    acceleration,
+    trendDirection,
+    trendCurve,
+    peakValue: Math.max(...trendCurve.map((t) => t.value || 0), 0),
+    currentValue: trendCurve[trendCurve.length - 1]?.value || 0,
+    discoveredAt: new Date().toISOString(),
+    earliestVideo: trendCurve[0]?.time || 0,
+  };
+}
+
+// ----------------------------------------------------------
 // MAIN EXPORT: fetchTrends()
 // ----------------------------------------------------------
 
@@ -130,20 +215,34 @@ export async function fetchTrends() {
   console.log("📱 Scanning TikTok for trends...");
 
   try {
-    // Fetch all 5 pages to get the full top 100
-    const [page1, page2, page3, page4, page5] = await Promise.all([
+    // Fetch hashtags (5 pages) and songs (3 pages) in parallel
+    const [h1, h2, h3, h4, h5, s1, s2, s3] = await Promise.all([
       fetchTrendingHashtags(1, 20),
       fetchTrendingHashtags(2, 20),
       fetchTrendingHashtags(3, 20),
       fetchTrendingHashtags(4, 20),
       fetchTrendingHashtags(5, 20),
+      fetchTrendingSongs(1, 20),
+      fetchTrendingSongs(2, 20),
+      fetchTrendingSongs(3, 20),
     ]);
 
-    const allRaw = [...page1, ...page2, ...page3, ...page4, ...page5];
-    console.log(`  📊 Got ${allRaw.length} trending hashtags from TikTok`);
+    const allHashtags = [...h1, ...h2, ...h3, ...h4, ...h5];
+    const allSongs = [...s1, ...s2, ...s3];
+
+    console.log(`  📊 Got ${allHashtags.length} trending hashtags from TikTok`);
+    console.log(`  🎵 Got ${allSongs.length} trending songs from TikTok`);
+
+    // Log first raw song for field debugging (remove after confirming)
+    if (allSongs.length > 0) {
+      console.log(`  🔍 Raw song sample keys: ${Object.keys(allSongs[0]).join(", ")}`);
+      console.log(`  🔍 Sample song: ${JSON.stringify(allSongs[0]).slice(0, 300)}`);
+    }
 
     // Transform into our format
-    const trends = allRaw.map(transformHashtag);
+    const hashtagTrends = allHashtags.map(transformHashtag);
+    const songTrends = allSongs.map(transformSong);
+    const trends = [...hashtagTrends, ...songTrends];
 
     // Sort by a combined signal:
     // Rising + high views + lots of creators = most interesting

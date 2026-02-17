@@ -44,11 +44,24 @@ const NON_ENGLISH_PATTERNS = [
 
 function isNoise(trend) {
   const name = trend.name.replace("#", "").toLowerCase();
-  if (SKIP_HASHTAGS.has(name)) return true;
-  for (const pattern of NON_ENGLISH_PATTERNS) {
-    if (pattern.test(trend.name)) return true;
+
+  // Hashtag-specific filters
+  if (trend.type === "hashtag") {
+    if (SKIP_HASHTAGS.has(name)) return true;
+    for (const pattern of NON_ENGLISH_PATTERNS) {
+      if (pattern.test(trend.name)) return true;
+    }
+    if (name.length > 25) return true;
   }
-  if (name.length > 25) return true;
+
+  // Song-specific filters — skip non-English songs
+  if (trend.type === "song") {
+    for (const pattern of NON_ENGLISH_PATTERNS) {
+      if (pattern.test(trend.name)) return true;
+    }
+  }
+
+  // Universal: skip falling trends
   if (trend.trendDirection === "falling") return true;
   return false;
 }
