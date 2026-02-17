@@ -141,11 +141,32 @@ async function fetchTrendingSongs(page = 1, limit = 20) {
     for (const path of paths) {
       try {
         const data = await apiFetch(path);
+        // Debug: log raw response structure
+        console.log(`    🔍 Song API response keys: ${JSON.stringify(Object.keys(data))}`);
+        if (data.data) {
+          console.log(`    🔍 Song data keys: ${JSON.stringify(Object.keys(data.data))}`);
+        }
         if (data.code === 0 && data.data?.list?.length > 0) {
           return data.data.list;
         }
+        if (data.code === 0 && data.data?.songs?.length > 0) {
+          return data.data.songs;
+        }
+        if (data.code === 0 && data.data?.music_list?.length > 0) {
+          return data.data.music_list;
+        }
+        // Try any array in data
+        if (data.code === 0 && data.data) {
+          for (const key of Object.keys(data.data)) {
+            if (Array.isArray(data.data[key]) && data.data[key].length > 0) {
+              console.log(`    🔍 Found song data in field: ${key}`);
+              return data.data[key];
+            }
+          }
+        }
+        console.log(`    ❌ Song API returned code: ${data.code}, msg: ${data.msg || 'none'}`);
       } catch (e) {
-        // try next path
+        console.log(`    ❌ Song path failed: ${e.message}`);
       }
     }
 
@@ -219,18 +240,18 @@ export async function fetchTrends() {
     for (let p = 1; p <= 5; p++) {
       const page = await fetchTrendingHashtags(p, 20);
       allHashtags.push(...page);
-      if (p < 5) await new Promise(r => setTimeout(r, 500));
+      if (p < 5) await new Promise(r => setTimeout(r, 300));
     }
     console.log(`  📊 Got ${allHashtags.length} trending hashtags from TikTok`);
 
     // Small delay then fetch songs
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise(r => setTimeout(r, 500));
 
     const allSongs = [];
     for (let p = 1; p <= 3; p++) {
       const page = await fetchTrendingSongs(p, 20);
       allSongs.push(...page);
-      if (p < 3) await new Promise(r => setTimeout(r, 500));
+      if (p < 3) await new Promise(r => setTimeout(r, 300));
     }
 
     console.log(`  🎵 Got ${allSongs.length} trending songs from TikTok`);
