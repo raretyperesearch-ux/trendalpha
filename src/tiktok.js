@@ -217,31 +217,19 @@ export async function fetchTrends() {
   console.log("📱 Scanning TikTok for trends...");
 
   try {
-    // Fetch hashtags sequentially to avoid rate limits
-    const allHashtags = [];
-    for (let p = 1; p <= 5; p++) {
-      const page = await fetchTrendingHashtags(p, 20);
-      allHashtags.push(...page);
-      if (p < 5) await new Promise(r => setTimeout(r, 300));
-    }
+    // Fetch all 5 pages for the full top 100
+    const [h1, h2, h3, h4, h5] = await Promise.all([
+      fetchTrendingHashtags(1, 20),
+      fetchTrendingHashtags(2, 20),
+      fetchTrendingHashtags(3, 20),
+      fetchTrendingHashtags(4, 20),
+      fetchTrendingHashtags(5, 20),
+    ]);
+    const allHashtags = [...h1, ...h2, ...h3, ...h4, ...h5];
     console.log(`  📊 Got ${allHashtags.length} trending hashtags from TikTok`);
 
-    // Small delay then fetch songs
-    await new Promise(r => setTimeout(r, 500));
-
-    const allSongs = [];
-    for (let p = 1; p <= 3; p++) {
-      const page = await fetchTrendingSongs(p, 20);
-      allSongs.push(...page);
-      if (p < 3) await new Promise(r => setTimeout(r, 300));
-    }
-
-    console.log(`  🎵 Got ${allSongs.length} trending songs from TikTok`);
-
     // Transform into our format
-    const hashtagTrends = allHashtags.map(transformHashtag);
-    const songTrends = allSongs.map(transformSong);
-    const trends = [...hashtagTrends, ...songTrends];
+    const trends = allHashtags.map(transformHashtag);
 
     // Sort by a combined signal:
     // Rising + high views + lots of creators = most interesting
