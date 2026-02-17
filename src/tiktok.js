@@ -214,19 +214,24 @@ export async function fetchTrends() {
   console.log("📱 Scanning TikTok for trends...");
 
   try {
-    // Fetch hashtags (5 pages) and songs (3 pages) in parallel
-    const [h1, h2, h3, h4, h5, s1, s2, s3] = await Promise.all([
-      fetchTrendingHashtags(1, 20),
-      fetchTrendingHashtags(2, 20),
-      fetchTrendingHashtags(3, 20),
-      fetchTrendingHashtags(4, 20),
-      fetchTrendingHashtags(5, 20),
-      fetchTrendingSongs(1, 20),
-      fetchTrendingSongs(2, 20),
-      fetchTrendingSongs(3, 20),
-    ]);
+    // Fetch hashtags sequentially to avoid rate limits
+    const allHashtags = [];
+    for (let p = 1; p <= 5; p++) {
+      const page = await fetchTrendingHashtags(p, 20);
+      allHashtags.push(...page);
+      if (p < 5) await new Promise(r => setTimeout(r, 500));
+    }
+    console.log(`  📊 Got ${allHashtags.length} trending hashtags from TikTok`);
 
-    const allHashtags = [...h1, ...h2, ...h3, ...h4, ...h5];
+    // Small delay then fetch songs
+    await new Promise(r => setTimeout(r, 1000));
+
+    const allSongs = [];
+    for (let p = 1; p <= 3; p++) {
+      const page = await fetchTrendingSongs(p, 20);
+      allSongs.push(...page);
+      if (p < 3) await new Promise(r => setTimeout(r, 500));
+    }
     const allSongs = [...s1, ...s2, ...s3];
 
     console.log(`  📊 Got ${allHashtags.length} trending hashtags from TikTok`);
