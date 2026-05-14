@@ -1,162 +1,152 @@
 # 📡 TrendAlpha
 
-**TikTok Trend → Crypto Signal Pipeline for Telegram**
+**TrendAlpha is a TikTok trend intelligence bot that turns viral internet attention into crypto market signals.**
 
-Scans TikTok every 15 minutes for viral trends, scores them on two metrics (views/hour + video count), checks if a token already exists on-chain, and blasts alerts to your Telegram channel.
+It scans TikTok Creative Center for rising hashtags, scores each trend based on velocity and momentum, checks whether a related token already exists on-chain, and sends actionable Telegram alerts before the crowd fully catches on.
 
----
-
-## Quick Start
-
-### 1. Clone & Install
-
-```bash
-git clone <your-repo>
-cd trendalpha
-npm install
-```
-
-### 2. Set Up Services (all free tier)
-
-**Telegram Bot:**
-1. Message [@BotFather](https://t.me/BotFather) on Telegram
-2. Send `/newbot`, pick a name
-3. Copy the bot token
-4. Create a Telegram channel, add your bot as **admin**
-5. Get the channel ID: forward a message from the channel to [@userinfobot](https://t.me/userinfobot)
-
-**Supabase:**
-1. Create a free project at [supabase.com](https://supabase.com)
-2. Go to SQL Editor → paste the contents of `supabase/migration.sql` → Run
-3. Copy your project URL and anon key from Settings → API
-
-**Birdeye (optional but recommended):**
-1. Get a free API key at [birdeye.so](https://birdeye.so)
-
-**TikTok Data (choose one):**
-- **RapidAPI** — Subscribe to a TikTok scraping API on [rapidapi.com](https://rapidapi.com), set `RAPIDAPI_KEY`
-- **Custom scraper** — Set up your own and point `TIKTOK_SCRAPER_URL` to it
-- **No key** — Runs with mock data for development
-
-### 3. Configure
-
-```bash
-cp .env.example .env
-# Edit .env with your keys
-```
-
-### 4. Test
-
-```bash
-# Send test alerts to your TG channel
-npm run test-alert
-
-# Run a single scan
-npm run scan
-```
-
-### 5. Deploy
-
-```bash
-# Start the bot (scans every 15 min)
-npm start
-```
+Think of it as an early-warning radar for meme liquidity.
 
 ---
 
-## Deploy to Railway (recommended)
+## What It Does
 
-1. Push to GitHub
-2. Go to [railway.app](https://railway.app) → New Project → Deploy from GitHub
-3. Add your environment variables in the Railway dashboard
-4. It auto-deploys and runs 24/7
-5. Cost: ~$5/month on Railway
+TrendAlpha watches TikTok for fast-moving cultural signals and turns them into structured alerts.
 
----
+Every scan, it:
 
-## Project Structure
-
-```
-trendalpha/
-├── src/
-│   ├── index.js          # Main entry — cron loop
-│   ├── config.js          # Env var loader
-│   ├── tiktok.js          # TikTok trend scanner (pluggable providers)
-│   ├── scoring.js         # Scoring engine (views/hr + video count)
-│   ├── tokens.js          # DexScreener + Birdeye token matching
-│   ├── telegram.js        # Alert formatting + TG bot
-│   ├── db.js              # Supabase storage
-│   └── scripts/
-│       ├── testAlert.js   # Send test alerts
-│       └── runScan.js     # Run single scan
-├── supabase/
-│   └── migration.sql      # Database tables
-├── .env.example           # Env template
-└── package.json
-```
+1. Pulls trending TikTok hashtags from TikTok Creative Center
+2. Filters out low-quality noise like generic hashtags, spam trends, falling trends, and irrelevant categories
+3. Scores each trend from 0 to 100 using attention velocity, video count, acceleration, and rank momentum
+4. Searches DexScreener and Birdeye to see if a matching token already exists
+5. Sends high-conviction alerts to Telegram
+6. Posts a digest of top trends every 3 hours
+7. Stores trend snapshots in Supabase so it can detect score jumps over time
 
 ---
 
-## How Scoring Works
+## Why This Exists
 
-Two metrics that matter (your friend was right):
+Memecoins are downstream of attention.
 
-| Metric | What it measures | Max points |
-|--------|-----------------|------------|
-| **Views/hour** | How fast the trend is blowing up | 40 pts |
-| **Video count** | How many creators jumped on it | 40 pts |
-| **Freshness** | Newer trends = more opportunity | 10 pts |
-| **Acceleration** | Is it speeding up or slowing down? | 10 pts |
+A TikTok sound, hashtag, phrase, animal, joke, or weird internet moment can become a token before most traders even know the trend exists.
 
-Score thresholds:
-- **90-100** 🔴 EXTREME — drop everything
-- **80-89** 🟠 HIGH — strong signal
-- **70-79** 🟡 MEDIUM — worth watching
-- **60-69** ⚪ LOW — on the radar
-- **Below 60** — filtered out (not sent)
+TrendAlpha is designed to catch that window early.
+
+It does not predict price.  
+It detects cultural velocity.
 
 ---
 
-## TikTok Data Providers
+## Core Features
 
-The bot is built with a **provider pattern** — swap in whichever TikTok data source works best:
+### 📱 TikTok Trend Scanner
 
-| Provider | Cost | Reliability | Setup |
-|----------|------|-------------|-------|
-| RapidAPI TikTok APIs | ~$10-30/mo | Good | Set `RAPIDAPI_KEY` |
-| TokAPI | ~$30/mo | Best | Swap in `tiktok.js` |
-| Custom Puppeteer scraper | Free (+ hosting) | Variable | Set `TIKTOK_SCRAPER_URL` |
-| TikTok Research API | Free | Official | Apply at TikTok |
-| Mock data | Free | For dev only | Default fallback |
+TrendAlpha pulls real TikTok Creative Center trend data using RapidAPI.
 
----
+It currently scans the top 100 trending hashtags in the US market, including:
 
-## Customization
+- Hashtag name
+- Total views
+- Video count
+- Current rank
+- Rank movement
+- 7-day trend curve
+- Trend direction
+- Acceleration
 
-**Change scan frequency:**
-```
-SCAN_INTERVAL_MINUTES=10  # scan every 10 min instead of 15
-```
+The scanner fetches multiple pages of trending hashtags and sorts them by rising momentum and total attention.
 
-**Change alert threshold:**
-```
-MIN_SCORE_TO_ALERT=70  # only send score 70+ alerts
-```
+### 🎯 Trend Scoring Engine
 
-**Add your own scoring logic:**
-Edit `src/scoring.js` — the thresholds and point allocations are all configurable.
+Each trend receives a score from 0 to 100.
 
----
+The score is based on:
 
-## What's Next (if it works)
+| Metric | Weight | What It Means |
+|--------|--------|---------------|
+| Views per hour | 30 pts | How fast the trend is spreading |
+| Video count | 30 pts | How many creators are participating |
+| Trend acceleration | 20 pts | Whether the trend is speeding up |
+| Rank momentum | 20 pts | Whether it is climbing or newly entering the top 100 |
 
-- [ ] Payment gate for premium tier (Stripe or crypto)
-- [ ] Hit rate tracking + weekly report
-- [ ] Web dashboard with trend history
-- [ ] API access for whale tier
-- [ ] Discord integration
-- [ ] Push notifications
+Conviction levels:
 
----
+| Score | Label |
+|-------|-------|
+| 85+ | 🔴 EXTREME |
+| 75-84 | 🟠 HIGH |
+| 65-74 | 🟡 MEDIUM |
+| 55-64 | ⚪ LOW |
+| Below 55 | 💤 NOISE |
 
-**Not financial advice. DYOR. Ship it.** 🚀
+### 🧹 Noise Filtering
+
+The bot filters out obvious junk before scoring.
+
+It skips things like:
+
+- Generic hashtags: `#fyp`, `#viral`, `#trending`, `#foryou`
+- Overly broad categories
+- Falling trends
+- Very long hashtag names
+- Certain non-English or irrelevant trend patterns
+- Generic trading/investing tags that do not represent fresh culture
+
+This keeps alerts focused on things that may actually become memeable.
+
+### 🔍 Token Matching
+
+For every high-scoring trend, TrendAlpha checks whether a related token already exists.
+
+It searches:
+
+- **DexScreener** for multi-chain token matches
+- **Birdeye** for Solana token matches
+
+When a token is found, the alert includes:
+
+- Token symbol
+- Chain
+- Contract address
+- Market cap
+- 24h volume
+- Liquidity
+- 24h price change
+- Trading links
+
+If no token exists yet, the alert marks it as a potential watchlist item.
+
+### 📤 Telegram Alerts
+
+TrendAlpha sends formatted alerts directly to a Telegram channel.
+
+Alerts include:
+
+- Trend name
+- Score
+- Conviction level
+- TikTok link
+- Views per hour
+- Total views
+- Video count
+- Rank
+- Trend direction
+- Token data, if found
+- Refresh button for updating the trend in place
+
+### 📊 Trend Digest
+
+In addition to live alerts, TrendAlpha posts a digest every 3 hours.
+
+The digest summarizes the top trends by score, giving a clean overview of what is currently moving across TikTok.
+
+### 🔁 Re-Alerts on Score Jumps
+
+TrendAlpha avoids spamming the same trend repeatedly.
+
+However, if a trend was already alerted and its score jumps meaningfully, the bot can alert again.
+
+Current re-alert threshold:
+
+```js
+SCORE_JUMP_THRESHOLD = 10
