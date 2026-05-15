@@ -28,6 +28,7 @@ const IP_TERMS = [
   "swiftie",
   "beyonce",
   "drake",
+  "celebrity",
   "trump",
   "biden",
   "kim kardashian",
@@ -49,6 +50,20 @@ const SENSITIVE_TERMS = [
   "flood",
 ];
 
+const POLITICAL_TERMS = [
+  "election",
+  "senate",
+  "congress",
+  "democrat",
+  "republican",
+  "maga",
+  "liberal",
+  "conservative",
+  "president",
+  "governor",
+  "minister",
+];
+
 export function scoreLaunchOpportunity(trend, token = null, previousSnapshot = null) {
   const name = normalizeName(trend.name);
   const words = name.split(/\s+/).filter(Boolean);
@@ -57,12 +72,12 @@ export function scoreLaunchOpportunity(trend, token = null, previousSnapshot = n
   const isNewEntry = trend.rankChangeType === 3;
   const riskFlags = getRiskFlags(name, words, trend);
 
-  const attentionVelocity = scoreAttentionVelocity({ trend, viewsPerHour, previousSnapshot });
+  const attentionVelocity = scoreAttentionVelocity({ trend, viewsPerHour, previousSnapshot, riskFlags });
   const freshness = scoreFreshness({ trend, hoursActive, isNewEntry });
-  const memeClarity = scoreMemeClarity({ name, words, trend });
+  const memeClarity = scoreMemeClarity({ name, words, trend, riskFlags });
   const tickerStrength = scoreTickerStrength(name, words);
-  const visualStrength = scoreVisualStrength({ name, words, trend });
-  const saturation = scoreSaturation(token);
+  const visualStrength = scoreVisualStrength({ name, words, trend, riskFlags });
+  const saturation = scoreSaturation(token, trend);
   const risk = scoreRisk(riskFlags);
 
   const breakdown = {
@@ -89,22 +104,18 @@ export function scoreLaunchOpportunity(trend, token = null, previousSnapshot = n
   };
 }
 
-function scoreAttentionVelocity({ trend, viewsPerHour, previousSnapshot }) {
+function scoreAttentionVelocity({ trend, viewsPerHour, previousSnapshot, riskFlags = [] }) {
+  if (trend.sourcePlatform === "x") {
+    return scoreXAttentionVelocity({ trend, viewsPerHour, riskFlags });
+  }
+
   let score = 0;
-  const engagementPerHour = trend.engagementPerHour || 0;
   if (viewsPerHour >= 2_000_000) score = 20;
   else if (viewsPerHour >= 1_000_000) score = 17;
   else if (viewsPerHour >= 500_000) score = 14;
   else if (viewsPerHour >= 200_000) score = 10;
   else if (viewsPerHour >= 100_000) score = 7;
   else score = Math.round((viewsPerHour / 100_000) * 7);
-  if (trend.sourcePlatform === "x" && engagementPerHour > 0) {
-    if (engagementPerHour >= 5_000) score = Math.max(score, 18);
-    else if (engagementPerHour >= 2_500) score = Math.max(score, 15);
-    else if (engagementPerHour >= 1_000) score = Math.max(score, 11);
-    else if (engagementPerHour >= 500) score = Math.max(score, 8);
-  }
-
   if (trend.trendDirection === "rising") score += 3;
   if ((trend.acceleration || 1) >= 1.5) score += 2;
   else if ((trend.acceleration || 1) >= 1.2) score += 1;
@@ -133,7 +144,11 @@ function scoreFreshness({ trend, hoursActive, isNewEntry }) {
   return clamp(score, 0, 20);
 }
 
-function scoreMemeClarity({ name, words, trend }) {
+function scoreMemeClarity({ name, words, trend, riskFlags = [] }) {
+  if (trend.sourcePlatform === "x") {
+    return scoreXMemeClarity({ name, words, trend, riskFlags });
+  }
+
   let score = 8;
   const joined = words.join("");
 
@@ -141,11 +156,9 @@ function scoreMemeClarity({ name, words, trend }) {
   else if (words.length <= 4 && joined.length <= 24) score += 2;
 
   if (trend.type === "hashtag") score += 2;
-  if (trend.sourcePlatform === "x" && (trend.text || "").length <= 140) score += 2;
   if (hasDistinctiveWord(words)) score += 1;
   if (words.some((word) => GENERIC_TERMS.has(word))) score -= 4;
   if (name.length > 28) score -= 3;
-  if (trend.cryptoSaturatedLanguage) score -= 3;
 
   return clamp(score, 0, 15);
 }
@@ -165,7 +178,11 @@ function scoreTickerStrength(name, words) {
   return clamp(score, 0, 15);
 }
 
-function scoreVisualStrength({ name, words, trend }) {
+function scoreVisualStrength({ name, words, trend, riskFlags = [] }) {
+  if (trend.sourcePlatform === "x") {
+    return scoreXVisualStrength({ name, words, trend, riskFlags });
+  }
+
   let score = 5;
   if (trend.type === "hashtag") score += 1;
   if (trend.hasMedia) score += 2;
@@ -175,7 +192,8 @@ function scoreVisualStrength({ name, words, trend }) {
   return clamp(score, 0, 10);
 }
 
-function scoreSaturation(token) {
+function scoreSaturation(token, trend = null) {
+  if (!token && trend?.cryptoSaturatedLanguage) return 6;
   if (!token) return 10;
 
   const volume = Number(token.volume24h || 0);
@@ -189,6 +207,8 @@ function scoreSaturation(token) {
 }
 
 function scoreRisk(riskFlags) {
+  if (riskFlags.some((flag) => ["sensitive or tragedy term", "political term", "celebrity/brand/IP term"].includes(flag))) return 0;
+  if (riskFlags.includes("crypto_saturated_language")) return 1;
   if (riskFlags.length === 0) return 5;
   if (riskFlags.length === 1) return 3;
   if (riskFlags.length === 2) return 1;
@@ -196,6 +216,10 @@ function scoreRisk(riskFlags) {
 }
 
 function getReasons({ trend, token, viewsPerHour, isNewEntry, breakdown, riskFlags }) {
+  if (trend.sourcePlatform === "x") {
+    return getXReasons({ trend, token, viewsPerHour, breakdown, riskFlags });
+  }
+
   const reasons = [];
   if (breakdown.attentionVelocity >= 18) reasons.push(`Strong attention velocity at ${formatCount(viewsPerHour)} views/hour.`);
   if (trend.trendDirection === "rising") reasons.push(`Trend direction is rising on ${trend.sourcePlatform === "x" ? "X" : "TikTok"}.`);
@@ -213,13 +237,141 @@ function getRiskFlags(name, words, trend = null) {
   const flags = [...(trend?.riskFlags || [])];
   const lower = name.toLowerCase();
 
-  if (name.length > 32 || words.length > 5) flags.push("very long name");
+  if (trend?.sourcePlatform === "x") {
+    if ((trend.text || name).length > 160) flags.push("very long name");
+  } else if (name.length > 32 || words.length > 5) {
+    flags.push("very long name");
+  }
   if (words.some((word) => GENERIC_TERMS.has(word))) flags.push("generic spam term");
   if (IP_TERMS.some((term) => lower.includes(term))) flags.push("celebrity/brand/IP term");
   if (SENSITIVE_TERMS.some((term) => lower.includes(term))) flags.push("sensitive or tragedy term");
+  if (POLITICAL_TERMS.some((term) => lower.includes(term))) flags.push("political term");
   if (trend?.cryptoSaturatedLanguage) flags.push("crypto_saturated_language");
 
   return [...new Set(flags)];
+}
+
+function scoreXAttentionVelocity({ trend, viewsPerHour, riskFlags = [] }) {
+  const engagementPerHour = trend.engagementPerHour || 0;
+  const likeCount = trend.likeCount || 0;
+  const repostCount = trend.repostCount || 0;
+  const replyCount = trend.replyCount || 0;
+  const quoteCount = trend.quoteCount || 0;
+  const weightedEngagement =
+    likeCount +
+    repostCount * 2 +
+    replyCount * 1.25 +
+    quoteCount * 3;
+
+  let score = 0;
+  if (viewsPerHour >= 1_000_000) score += 9;
+  else if (viewsPerHour >= 500_000) score += 7;
+  else if (viewsPerHour >= 200_000) score += 5;
+  else if (viewsPerHour >= 100_000) score += 3;
+
+  if (engagementPerHour >= 5_000) score += 9;
+  else if (engagementPerHour >= 2_500) score += 7;
+  else if (engagementPerHour >= 1_000) score += 5;
+  else if (engagementPerHour >= 500) score += 3;
+
+  if (weightedEngagement >= 150_000) score += 5;
+  else if (weightedEngagement >= 75_000) score += 4;
+  else if (weightedEngagement >= 30_000) score += 3;
+  else if (weightedEngagement >= 10_000) score += 2;
+
+  if (quoteCount >= 2_000) score += 2;
+  else if (quoteCount >= 500) score += 1;
+  if (trend.trendDirection === "rising") score += 2;
+  if (trend.cryptoSaturatedLanguage) score -= 3;
+  if (isHeavyRiskTrend(riskFlags)) score -= 6;
+
+  return clamp(score, 0, 25);
+}
+
+function scoreXMemeClarity({ name, words, trend, riskFlags = [] }) {
+  const text = (trend.text || trend.name || "").trim();
+  const compact = words.join("");
+  let score = 6;
+
+  if (text.length > 0 && text.length <= 80) score += 4;
+  else if (text.length <= 140) score += 2;
+
+  if (words.length >= 2 && words.length <= 6) score += 3;
+  else if (words.length <= 10) score += 1;
+
+  if (compact.length >= 4 && compact.length <= 24) score += 2;
+  if (hasRepeatablePhrase(text)) score += 2;
+  if (trend.quoteCount >= 500 || trend.repostCount >= 2_000) score += 1;
+  if (trend.cryptoSaturatedLanguage) score -= 4;
+  if (isHeavyRiskTrend(riskFlags)) score -= 7;
+  if (name.length > 45) score -= 2;
+
+  return clamp(score, 0, 15);
+}
+
+function scoreXVisualStrength({ name, words, trend, riskFlags = [] }) {
+  let score = 3;
+  if (trend.hasMedia) score += 4;
+  if (trend.mediaType === "video" || trend.mediaType === "animated_gif") score += 2;
+  if (words.some((word) => /pig|oink|frog|dog|cat|baby|pepe|wojak|chad|shark|goat|moo|bear|bull|robot|ai|food|game|streamer/i.test(word))) score += 2;
+  if ((trend.text || "").length <= 100) score += 1;
+  if (isHeavyRiskTrend(riskFlags)) score -= 5;
+  return clamp(score, 0, 10);
+}
+
+function getXReasons({ trend, token, viewsPerHour, breakdown, riskFlags }) {
+  const reasons = [];
+
+  if (riskFlags.length > 0) {
+    reasons.push(`Risk review needed: ${riskFlags.join(", ")}.`);
+  }
+
+  if (trend.engagementPerHour >= 500 || breakdown.attentionVelocity >= 15) {
+    reasons.push(`High X engagement velocity at ${formatCount(trend.engagementPerHour || 0)} engagements/hour.`);
+  }
+
+  if ((trend.quoteCount || 0) >= 250 || (trend.repostCount || 0) >= 1_000) {
+    reasons.push("Strong quote/repost activity indicates remix potential.");
+  }
+
+  if (trend.hasMedia && breakdown.visualStrength >= 7) {
+    reasons.push("Visual post with meme potential.");
+  }
+
+  if ((trend.text || "").trim().length > 0 && (trend.text || "").trim().length <= 100 && breakdown.memeClarity >= 10) {
+    reasons.push("Short repeatable phrase.");
+  }
+
+  if (!trend.cryptoSaturatedLanguage) {
+    reasons.push("No obvious crypto saturation.");
+  }
+
+  if (!token) {
+    reasons.push("No strong matching token found, so market saturation appears low.");
+  }
+
+  if (reasons.length === 0) {
+    reasons.push(`X post is moving at ${formatCount(viewsPerHour)} views/hour.`);
+  }
+
+  return reasons.slice(0, 5);
+}
+
+function hasRepeatablePhrase(text = "") {
+  const cleaned = text.toLowerCase().replace(/https?:\/\/\S+/g, "").trim();
+  return (
+    cleaned.length <= 80 &&
+    /\b(no way|bro|this is|what is|i can't|insane|wild|really|why is|let him|she really|he really)\b/i.test(cleaned)
+  );
+}
+
+function isHeavyRiskTrend(riskFlags = []) {
+  const flags = new Set(riskFlags);
+  return (
+    flags.has("political term") ||
+    flags.has("sensitive or tragedy term") ||
+    flags.has("celebrity/brand/IP term")
+  );
 }
 
 function normalizeName(name = "") {

@@ -11,7 +11,8 @@
     "dashboard": "node src/scripts/dashboard.js",
     "test-alert": "node src/scripts/testAlert.js",
     "test-launch": "node src/scripts/testLaunchBrief.js",
-    "test-x": "node src/scripts/testXProvider.js"
+    "test-x": "node src/scripts/testXProvider.js",
+    "test-x-launch": "node src/scripts/testXLaunchScoring.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
