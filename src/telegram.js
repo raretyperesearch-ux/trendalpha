@@ -240,9 +240,13 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
   msg += `🎯 SCORE: <b>${score.total}</b>/100\n`;
   msg += `<code>${bars}</code>\n\n`;
 
-  // TikTok data
+  // Source data
   msg += `━━━━━━━━━━━━━━━━━━━━\n`;
-  if (trend.type === "song") {
+  if (trend.sourcePlatform === "x") {
+    msg += `𝕏 <b>VIRAL X POST</b>\n`;
+    msg += `<b><a href="${escapeHtml(trend.sourceUrl)}">${escapeHtml(trend.name)}</a></b>\n`;
+    if (trend.author) msg += `by @${escapeHtml(trend.author)}\n`;
+  } else if (trend.type === "song") {
     msg += `🎵 <b>TIKTOK TRENDING SOUND</b>\n`;
     const songName = escapeHtml(trend.name);
     msg += `<b>${songName}</b>\n`;
@@ -267,6 +271,13 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
     msg += `🎤 Artist:       ${escapeHtml(trend.artist || "Original Sound")}\n`;
     msg += `📊 Song Rank:    #${trend.rank}\n`;
     if (trend.duration) msg += `⏱ Duration:     ${trend.duration}s\n`;
+  } else if (trend.sourcePlatform === "x") {
+    msg += `⚡ Views/hour:   ${viewsPerHourStr}\n`;
+    msg += `👁 Est. views:   ${formatCount(trend.totalViews)}\n`;
+    msg += `❤️ Likes:        ${formatCount(trend.likeCount)}\n`;
+    msg += `🔁 Reposts:      ${formatCount(trend.repostCount)}\n`;
+    msg += `💬 Replies:      ${formatCount(trend.replyCount)}\n`;
+    msg += `🧲 Eng/hr:       ${formatCount(trend.engagementPerHour)}\n`;
   } else {
     msg += `⚡ Views/hour:   ${viewsPerHourStr}\n`;
     msg += `👁 Total views:   ${formatCount(trend.totalViews)}\n`;
@@ -319,7 +330,11 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
 }
 
 function escapeHtml(text) {
-  return String(text ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return String(text ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 /**
@@ -340,14 +355,18 @@ export async function sendDigest(trends, scores) {
     const { trend, score } = top[i];
     const arrow = trend.trendDirection === "rising" ? "📈" :
                   trend.trendDirection === "falling" ? "📉" : "➡️";
-    if (trend.type === "song") {
+    if (trend.sourcePlatform === "x") {
+      msg += `${i + 1}. <a href="${escapeHtml(trend.sourceUrl)}">${escapeHtml(trend.name)}</a>`;
+    } else if (trend.type === "song") {
       msg += `${i + 1}. 🎵 ${escapeHtml(trend.name)}`;
     } else {
       const cleanName = trend.name.replace("#", "");
       msg += `${i + 1}. <a href="https://www.tiktok.com/tag/${encodeURIComponent(cleanName)}">${escapeHtml(trend.name)}</a>`;
     }
     msg += ` — <b>${score.total}</b>/100 ${arrow}\n`;
-    if (trend.type === "song") {
+    if (trend.sourcePlatform === "x") {
+      msg += `   ${formatCount(score.metrics.viewsPerHour)} v/hr | ${formatCount(trend.engagementCount)} engagements`;
+    } else if (trend.type === "song") {
       msg += `   ${escapeHtml(trend.artist || "Original Sound")} | #${trend.rank}`;
     } else {
       msg += `   ${formatCount(score.metrics.viewsPerHour)} v/hr | ${formatCount(trend.videoCount)} videos`;
@@ -436,7 +455,7 @@ function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBr
   msg += `Conviction: <b>${escapeHtml(launchScore.label)}</b>\n`;
   msg += `Trend Score: <b>${trendScore.total}/100</b>\n\n`;
 
-  msg += `Source: <b>TikTok</b>\n`;
+  msg += `Source: <b>${escapeHtml(getSourceLabel(trend))}</b>\n`;
   msg += `Trend: <b>${escapeHtml(trend.name)}</b>\n`;
   msg += `Source Post: <a href="${escapeHtml(launchBrief.sourceUrl)}">link</a>\n\n`;
 
@@ -482,4 +501,9 @@ function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBr
   msg += `<i>${escapeHtml(getBuybackSummary())}</i>`;
 
   return msg;
+}
+
+function getSourceLabel(trend) {
+  if (trend.sourcePlatform === "x") return "X";
+  return "TikTok";
 }

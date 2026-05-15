@@ -15,6 +15,8 @@ import { getViewsPerHour, getHoursActive } from "./tiktok.js";
 export function scoreTrend(trend, previousSnapshot = null) {
   const viewsPerHour = getViewsPerHour(trend);
   const hoursActive = getHoursActive(trend);
+  const videoCount = trend.videoCount || 0;
+  const engagementPerHour = trend.engagementPerHour || 0;
 
   // ---- VIEWS PER HOUR (0-30 pts) ----
   let velocityScore;
@@ -25,16 +27,31 @@ export function scoreTrend(trend, previousSnapshot = null) {
   else if (viewsPerHour >= 100_000) velocityScore = 12;
   else if (viewsPerHour >= 50_000) velocityScore = 7;
   else velocityScore = Math.round((viewsPerHour / 50_000) * 7);
+  if (trend.sourcePlatform === "x" && engagementPerHour > 0) {
+    if (engagementPerHour >= 5_000) velocityScore = Math.max(velocityScore, 26);
+    else if (engagementPerHour >= 2_500) velocityScore = Math.max(velocityScore, 22);
+    else if (engagementPerHour >= 1_000) velocityScore = Math.max(velocityScore, 17);
+    else if (engagementPerHour >= 500) velocityScore = Math.max(velocityScore, 12);
+  }
 
   // ---- VIDEO COUNT (0-30 pts) ----
   let videoScore;
-  if (trend.videoCount >= 50_000) videoScore = 30;
-  else if (trend.videoCount >= 20_000) videoScore = 26;
-  else if (trend.videoCount >= 10_000) videoScore = 22;
-  else if (trend.videoCount >= 5_000) videoScore = 17;
-  else if (trend.videoCount >= 2_000) videoScore = 12;
-  else if (trend.videoCount >= 1_000) videoScore = 7;
-  else videoScore = Math.round((trend.videoCount / 1_000) * 7);
+  if (trend.sourcePlatform === "x") {
+    const engagementCount = trend.engagementCount || 0;
+    if (engagementCount >= 100_000) videoScore = 30;
+    else if (engagementCount >= 50_000) videoScore = 26;
+    else if (engagementCount >= 20_000) videoScore = 22;
+    else if (engagementCount >= 10_000) videoScore = 17;
+    else if (engagementCount >= 5_000) videoScore = 12;
+    else if (engagementCount >= 2_000) videoScore = 7;
+    else videoScore = Math.round((engagementCount / 2_000) * 7);
+  } else if (videoCount >= 50_000) videoScore = 30;
+  else if (videoCount >= 20_000) videoScore = 26;
+  else if (videoCount >= 10_000) videoScore = 22;
+  else if (videoCount >= 5_000) videoScore = 17;
+  else if (videoCount >= 2_000) videoScore = 12;
+  else if (videoCount >= 1_000) videoScore = 7;
+  else videoScore = Math.round((videoCount / 1_000) * 7);
 
   // ---- TREND ACCELERATION (0-20 pts) ----
   let accelerationScore = 10;
@@ -79,7 +96,7 @@ export function scoreTrend(trend, previousSnapshot = null) {
   return {
     total: totalScore,
     breakdown: { velocity: velocityScore, videoCount: videoScore, acceleration: accelerationScore, rank: rankScore },
-    metrics: { viewsPerHour, videoCount: trend.videoCount, hoursActive },
+    metrics: { viewsPerHour, videoCount, engagementPerHour, hoursActive },
   };
 }
 

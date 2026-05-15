@@ -55,7 +55,7 @@ export function scoreLaunchOpportunity(trend, token = null, previousSnapshot = n
   const viewsPerHour = getViewsPerHour(trend);
   const hoursActive = getHoursActive(trend);
   const isNewEntry = trend.rankChangeType === 3;
-  const riskFlags = getRiskFlags(name, words);
+  const riskFlags = getRiskFlags(name, words, trend);
 
   const attentionVelocity = scoreAttentionVelocity({ trend, viewsPerHour, previousSnapshot });
   const freshness = scoreFreshness({ trend, hoursActive, isNewEntry });
@@ -91,12 +91,19 @@ export function scoreLaunchOpportunity(trend, token = null, previousSnapshot = n
 
 function scoreAttentionVelocity({ trend, viewsPerHour, previousSnapshot }) {
   let score = 0;
+  const engagementPerHour = trend.engagementPerHour || 0;
   if (viewsPerHour >= 2_000_000) score = 20;
   else if (viewsPerHour >= 1_000_000) score = 17;
   else if (viewsPerHour >= 500_000) score = 14;
   else if (viewsPerHour >= 200_000) score = 10;
   else if (viewsPerHour >= 100_000) score = 7;
   else score = Math.round((viewsPerHour / 100_000) * 7);
+  if (trend.sourcePlatform === "x" && engagementPerHour > 0) {
+    if (engagementPerHour >= 5_000) score = Math.max(score, 18);
+    else if (engagementPerHour >= 2_500) score = Math.max(score, 15);
+    else if (engagementPerHour >= 1_000) score = Math.max(score, 11);
+    else if (engagementPerHour >= 500) score = Math.max(score, 8);
+  }
 
   if (trend.trendDirection === "rising") score += 3;
   if ((trend.acceleration || 1) >= 1.5) score += 2;
@@ -134,9 +141,11 @@ function scoreMemeClarity({ name, words, trend }) {
   else if (words.length <= 4 && joined.length <= 24) score += 2;
 
   if (trend.type === "hashtag") score += 2;
+  if (trend.sourcePlatform === "x" && (trend.text || "").length <= 140) score += 2;
   if (hasDistinctiveWord(words)) score += 1;
   if (words.some((word) => GENERIC_TERMS.has(word))) score -= 4;
   if (name.length > 28) score -= 3;
+  if (trend.cryptoSaturatedLanguage) score -= 3;
 
   return clamp(score, 0, 15);
 }
@@ -159,6 +168,7 @@ function scoreTickerStrength(name, words) {
 function scoreVisualStrength({ name, words, trend }) {
   let score = 5;
   if (trend.type === "hashtag") score += 1;
+  if (trend.hasMedia) score += 2;
   if (words.some((word) => /pig|oink|frog|dog|cat|baby|pepe|wojak|chad|shark|goat|moo|bear|bull/i.test(word))) score += 3;
   if (words.some((word) => /girl|boy|mom|dad|boss|queen|king|chef|doctor|teacher|mascot/i.test(word))) score += 2;
   if (name.length <= 18) score += 1;
@@ -188,8 +198,9 @@ function scoreRisk(riskFlags) {
 function getReasons({ trend, token, viewsPerHour, isNewEntry, breakdown, riskFlags }) {
   const reasons = [];
   if (breakdown.attentionVelocity >= 18) reasons.push(`Strong attention velocity at ${formatCount(viewsPerHour)} views/hour.`);
-  if (trend.trendDirection === "rising") reasons.push("Trend direction is rising on TikTok.");
+  if (trend.trendDirection === "rising") reasons.push(`Trend direction is rising on ${trend.sourcePlatform === "x" ? "X" : "TikTok"}.`);
   if (isNewEntry) reasons.push("New entry into the TikTok top 100, which can signal early market formation.");
+  if (trend.sourcePlatform === "x" && trend.engagementPerHour >= 500) reasons.push(`High X engagement velocity at ${formatCount(trend.engagementPerHour)} engagements/hour.`);
   if (breakdown.memeClarity >= 11) reasons.push("Name is short and memeable enough to package into a market.");
   if (breakdown.tickerStrength >= 11) reasons.push("Clean ticker candidate with low punctuation/friction.");
   if (!token) reasons.push("No strong matching token found, so market saturation appears low.");
@@ -198,14 +209,15 @@ function getReasons({ trend, token, viewsPerHour, isNewEntry, breakdown, riskFla
   return reasons.slice(0, 5);
 }
 
-function getRiskFlags(name, words) {
-  const flags = [];
+function getRiskFlags(name, words, trend = null) {
+  const flags = [...(trend?.riskFlags || [])];
   const lower = name.toLowerCase();
 
   if (name.length > 32 || words.length > 5) flags.push("very long name");
   if (words.some((word) => GENERIC_TERMS.has(word))) flags.push("generic spam term");
   if (IP_TERMS.some((term) => lower.includes(term))) flags.push("celebrity/brand/IP term");
   if (SENSITIVE_TERMS.some((term) => lower.includes(term))) flags.push("sensitive or tragedy term");
+  if (trend?.cryptoSaturatedLanguage) flags.push("crypto_saturated_language");
 
   return [...new Set(flags)];
 }

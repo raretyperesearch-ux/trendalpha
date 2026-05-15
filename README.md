@@ -1,10 +1,50 @@
 # OINK
 
-**OINK, formerly TrendAlpha, is the attention layer for internet-native markets.**
+```txt
+        _   _
+       (o) (o)
+    /     V     \
+   /  \       /  \
+  /____\_____/____\
+       /  |  \
+      /___|___\
+        OINK
+```
 
-TrendAlpha was phase one: it scanned TikTok Creative Center trends and caught narratives before they had coins. OINK is phase two: it detects viral attention before markets exist, scores launch potential, generates launch briefs, and prepares launch candidates for review.
+**OINK is the attention layer for internet-native markets.**
 
-The scanner is active today, starting with TikTok trends first, then expanding into other attention markets. Real token launching, wallet handling, private-key actions, and transaction submission are not implemented yet.
+OINK was formerly TrendAlpha. TrendAlpha proved the first idea: internet trends can become market narratives before most people notice them. OINK takes the next step: it watches viral attention across social platforms, scores whether that attention could become a market, generates launch briefs, and prepares candidates for human review.
+
+The goal is not to chase coins that already exist. The goal is to catch the raw attention before the market forms.
+
+## What OINK Watches
+
+OINK currently watches two types of attention:
+
+- **TikTok trends**: broader trend movement, recurring phrases, hashtags, sounds, and culture loops.
+- **X posts**: individual viral posts with unusual velocity, media, reactions, reposts, replies, quotes, and freshness.
+
+TikTok is the trend scanner.
+
+X is the viral post scanner.
+
+Together, they give OINK a better read on what the internet is noticing before traders turn it into a ticker.
+
+## What OINK Looks For
+
+OINK is tuned for raw viral attention, not crypto chatter.
+
+It cares about:
+
+- Fast view and engagement velocity
+- Fresh posts and trends
+- Meme clarity
+- Simple names that can become clean tickers
+- Strong visual hooks
+- Whether a related token already exists
+- Risk flags around brands, celebrities, tragedy, or already-saturated crypto language
+
+If a post is already talking about `pump.fun`, contract addresses, 100x calls, tickers, or memecoins, OINK treats that as a warning sign. That kind of language may mean the attention is already downstream of crypto instead of originating from broader internet culture.
 
 ## Launch Flow
 
@@ -12,175 +52,38 @@ The scanner is active today, starting with TikTok trends first, then expanding i
 Viral Post
   -> Attention Scanner
   -> Launch Score Engine
+  -> Launch Brief
   -> Autonomous Market Prepared
-  -> Launch Fees
+  -> Launch Review
+  -> Fees
   -> $OINK Buybacks
 ```
 
-Launch candidates are prepared only. The pump.fun adapter currently returns metadata and a safety note; it does not call APIs, touch wallets, or submit transactions.
+For now, OINK only prepares launch candidates. It does not launch tokens.
 
-## What The Bot Does
+## What OINK Produces
 
-- Scans TikTok Creative Center trends through RapidAPI.
-- Filters low-quality noise like generic hashtags, falling trends, and irrelevant categories.
-- Scores trend momentum with `src/scoring.js`.
-- Checks DexScreener and Birdeye for existing related tokens with `src/tokens.js`.
-- Scores launch potential with `src/launchScoring.js`.
-- Generates OINK launch briefs with `src/launchBrief.js`.
-- Sends Telegram alerts, digests, and launch candidate cards with `src/telegram.js`.
-- Stores trend snapshots and alert records in Supabase with `src/db.js`.
-- Shows a read-only terminal dashboard with `src/scripts/dashboard.js`.
+OINK turns attention into structured outputs:
 
-The repository, package name, and some compatibility references may still say `trendalpha`; user-facing product copy is OINK.
-
-## Quick Start
-
-### 1. Install
-
-```bash
-git clone <your-repo>
-cd trendalpha
-npm install
-```
-
-### 2. Set Up Services
-
-**Telegram Bot**
-
-1. Message [@BotFather](https://t.me/BotFather) on Telegram.
-2. Send `/newbot`, pick a name, and copy the bot token.
-3. Create a Telegram channel and add your bot as admin.
-4. Get the channel ID by forwarding a channel message to [@userinfobot](https://t.me/userinfobot).
-
-**Supabase**
-
-1. Create a project at [supabase.com](https://supabase.com).
-2. Run the SQL in `supabase/migration.sql`.
-3. Copy your project URL and anon key from Settings -> API.
-
-**TikTok Data**
-
-- Subscribe to a TikTok Creative Center API on [RapidAPI](https://rapidapi.com).
-- Set `RAPIDAPI_KEY`.
-
-**Birdeye**
-
-- Optional, recommended for Solana token matching.
-
-### 3. Configure
-
-```bash
-cp .env.example .env
-```
-
-Set your keys, then tune thresholds:
-
-```bash
-SCAN_INTERVAL_MINUTES=15
-MIN_SCORE_TO_ALERT=70
-MIN_LAUNCH_SCORE=82
-ENABLE_LAUNCH_CANDIDATES=true
-```
-
-### 4. Test
-
-```bash
-npm run test-alert
-npm run test-launch
-npm run dashboard
-npm run scan
-```
-
-### 5. Run
-
-```bash
-npm start
-```
-
-## Project Structure
-
-```txt
-trendalpha/
-├── src/
-│   ├── index.js                  # Main cron loop
-│   ├── config.js                 # Env var loader
-│   ├── tiktok.js                 # TikTok trend scanner
-│   ├── scoring.js                # Trend score engine
-│   ├── launchScoring.js          # OINK launch score engine
-│   ├── launchBrief.js            # Launch brief generation
-│   ├── launchers/
-│   │   └── pumpfun.js            # Safe launch preparation stub
-│   ├── buybacks.js               # OINK fee/buyback model copy
-│   ├── tokens.js                 # DexScreener + Birdeye matching
-│   ├── telegram.js               # Alerts, digests, candidate cards
-│   ├── db.js                     # Supabase storage
-│   └── scripts/
-│       ├── dashboard.js
-│       ├── runScan.js
-│       ├── testAlert.js
-│       └── testLaunchBrief.js
-├── supabase/
-│   └── migration.sql
-├── .env.example
-└── package.json
-```
-
-## Trend Scoring
-
-Each trend receives a score from 0 to 100 based on:
-
-| Metric | Weight | What It Means |
-|--------|--------|---------------|
-| Views per hour | 30 pts | How fast the trend is spreading |
-| Video count | 30 pts | How many creators are participating |
-| Trend acceleration | 20 pts | Whether the trend is speeding up |
-| Rank momentum | 20 pts | Whether it is climbing or newly entering the top 100 |
-
-Conviction levels:
-
-| Score | Label |
-|-------|-------|
-| 85+ | EXTREME |
-| 75-84 | HIGH |
-| 65-74 | MEDIUM |
-| 55-64 | LOW |
-| Below 55 | NOISE |
-
-## Launch Scoring
-
-Launch opportunity scores are 0-100:
-
-| Metric | Max |
-|--------|-----|
-| Attention velocity | 25 |
-| Freshness | 20 |
-| Meme clarity | 15 |
-| Ticker strength | 15 |
-| Visual strength | 10 |
-| Saturation | 10 |
-| Risk | 5 |
-
-Labels:
-
-- **EXTREME**: 85+
-- **HIGH**: 75+
-- **MEDIUM**: 65+
-- **LOW**: 55+
-- **REJECT**: below 55
-
-Existing tokens reduce saturation score when volume or liquidity suggests the market may already exist. No matching token increases saturation score because there may still be white space for a new market.
+- **Trend score**: how strong the underlying attention is.
+- **Launch score**: whether the attention could plausibly become a market.
+- **Suggested name and ticker**: a clean market framing.
+- **Launch thesis**: why the attention matters before a market fully forms.
+- **Risk flags**: reasons a candidate may need review or rejection.
+- **Telegram cards**: launch candidate alerts for fast review.
+- **Terminal dashboard**: latest scanned trends, launch scores, ticker suggestions, token status, and buyback flywheel.
 
 ## Telegram Alerts
 
-OINK sends formatted Telegram messages for:
+OINK sends:
 
-- Standard attention alerts.
-- Top-trend digests every 3 hours.
-- Launch candidate cards when a trend clears the launch score threshold.
+- Standard attention alerts
+- Launch candidate cards
+- Periodic trend digests
 
-Launch candidate cards include source link, launch score, conviction, reasons, suggested market name and ticker, launch thesis, risk flags, existing token context, status, and the buyback flywheel.
+Launch candidate cards include the source, score, conviction, reasons, suggested ticker, launch thesis, existing-token context, risk flags, and status.
 
-## Terminal Dashboard
+## Dashboard
 
 Run:
 
@@ -188,25 +91,43 @@ Run:
 npm run dashboard
 ```
 
-The dashboard reads latest trend snapshots and alert/token metadata from Supabase when available. If the existing tables are empty or unreachable, it renders a small static mock dashboard so the view can still be tested locally.
+The dashboard is read-only. It shows recent attention candidates and the $OINK buyback flywheel.
 
-It displays latest scanned trends, launch score, suggested ticker, token existence, launch candidate status, and the $OINK buyback flywheel. It is read-only and does not launch tokens.
+## Local Commands
+
+```bash
+npm run scan
+npm run test-launch
+npm run test-x
+npm run dashboard
+npm start
+```
 
 ## Safety Boundary
 
-OINK currently prepares launch candidates only. It does not:
+OINK currently prepares candidates only.
 
-- Store or request private keys.
-- Connect wallets.
-- Submit transactions.
-- Call pump.fun or launch-platform APIs.
-- Execute autonomous launches.
+It does not:
 
-## Next
+- Store or request private keys
+- Connect wallets
+- Submit transactions
+- Launch tokens
+- Execute autonomous trading
 
-- Add more attention sources beyond TikTok.
-- Track launch candidate outcomes.
-- Add richer risk review and IP filtering.
-- Expand the launch adapter once transaction safety, approvals, and custody design are explicit.
+The launch adapter is a stub that prepares metadata only.
+
+## Current Direction
+
+OINK is evolving toward autonomous attention markets, but the foundation comes first:
+
+1. Scanner
+2. Launch score
+3. Launch brief
+4. Telegram card
+5. Prepared launch metadata
+6. Human review
+
+Real autonomous launching comes later, after safety, approvals, custody, and execution rules are explicit.
 
 **Not financial advice. DYOR.**

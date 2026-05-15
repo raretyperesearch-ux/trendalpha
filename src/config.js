@@ -11,6 +11,15 @@ const optionalBool = (key, fallback) => {
   const val = optional(key, fallback ? "true" : "false").toLowerCase();
   return ["1", "true", "yes", "on"].includes(val);
 };
+const optionalInt = (key, fallback) => parseInt(optional(key, fallback), 10);
+const optionalList = (key) => {
+  const val = optional(key, "");
+  if (!val.trim()) return [];
+  return val
+    .split(/\n|\|/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+};
 
 export const config = {
   telegram: {
@@ -25,11 +34,23 @@ export const config = {
     apiKey: optional("BIRDEYE_API_KEY", ""),
   },
   scan: {
-    intervalMinutes: parseInt(optional("SCAN_INTERVAL_MINUTES", "15")),
-    minScore: parseInt(optional("MIN_SCORE_TO_ALERT", "70")),
+    intervalMinutes: optionalInt("SCAN_INTERVAL_MINUTES", "15"),
+    minScore: optionalInt("MIN_SCORE_TO_ALERT", "70"),
   },
   launch: {
-    minLaunchScore: parseInt(optional("MIN_LAUNCH_SCORE", "82")),
+    minLaunchScore: optionalInt("MIN_LAUNCH_SCORE", "82"),
     enableLaunchCandidates: optionalBool("ENABLE_LAUNCH_CANDIDATES", true),
+  },
+  providers: {
+    tiktok: optionalBool("ENABLE_TIKTOK_PROVIDER", true),
+    x: optionalBool("ENABLE_X_PROVIDER", true),
+  },
+  x: {
+    bearerToken: optional("X_BEARER_TOKEN", ""),
+    searchQueries: optionalList("X_SEARCH_QUERIES"),
+    minViews: optionalInt("X_MIN_VIEWS", "100000"),
+    minLikes: optionalInt("X_MIN_LIKES", "3000"),
+    maxPostAgeHours: optionalInt("X_MAX_POST_AGE_HOURS", "12"),
+    resultsPerQuery: optionalInt("X_RESULTS_PER_QUERY", "25"),
   },
 };

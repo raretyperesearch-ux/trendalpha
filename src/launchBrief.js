@@ -1,21 +1,23 @@
 export function generateLaunchBrief({ trend, trendScore, launchScore, token }) {
-  const cleanName = cleanTrendName(trend.name);
+  const sourcePlatform = trend.sourcePlatform || "tiktok";
+  const cleanName = cleanTrendName(trend.name || trend.text || "");
   const suggestedName = titleCase(selectStrongName(cleanName));
   const suggestedTicker = buildTicker(suggestedName);
   const sourceUrl = getSourceUrl(trend, cleanName);
   const existingToken = token ? { ...token } : null;
+  const sourceLabel = sourcePlatform === "x" ? "X" : "TikTok";
 
   return {
-    sourcePlatform: "tiktok",
+    sourcePlatform,
     sourceUrl,
     originalTrendName: trend.name,
     suggestedName,
     suggestedTicker,
     thesis: buildThesis({ trend, suggestedName, launchScore, token }),
-    description: `${suggestedName} is an OINK attention-market candidate discovered from rising TikTok demand before the market is fully formed.`,
-    firstTweet: `OINK spotted ${formatTrendName(trend.name)} moving through TikTok before the market fully caught up. Watching ${suggestedName} as an attention-market candidate. $${suggestedTicker}`,
-    telegramSummary: `${suggestedName} is a TikTok attention spike with ${articleFor(launchScore.label)} ${launchScore.label} launch score (${launchScore.total}/100).`,
-    imagePrompt: `Clean playful internet-native OINK logo for "${suggestedName}": bold mascot-style mark, simple silhouette, high contrast, readable at small sizes, no text except optional $${suggestedTicker} ticker treatment.`,
+    description: `${suggestedName} is an OINK attention-market candidate discovered from rising ${sourceLabel} demand before the market is fully formed.`,
+    firstTweet: `OINK spotted ${formatTrendName(trend.name)} moving through ${sourceLabel} before the market fully caught up. Watching ${suggestedName} as an attention-market candidate. $${suggestedTicker}`,
+    telegramSummary: `${suggestedName} is a ${sourceLabel} attention spike with ${articleFor(launchScore.label)} ${launchScore.label} launch score (${launchScore.total}/100).`,
+    imagePrompt: buildImagePrompt({ trend, suggestedName, suggestedTicker }),
     riskFlags: launchScore.riskFlags || [],
     existingToken,
     launchScore,
@@ -24,6 +26,9 @@ export function generateLaunchBrief({ trend, trendScore, launchScore, token }) {
 }
 
 function getSourceUrl(trend, cleanName) {
+  if (trend.sourcePlatform === "x") {
+    return trend.sourceUrl || "https://x.com/";
+  }
   if (trend.type === "hashtag") {
     return `https://www.tiktok.com/tag/${encodeURIComponent(cleanName.replace(/\s+/g, ""))}`;
   }
@@ -68,11 +73,12 @@ function buildTicker(name) {
 
 function buildThesis({ trend, suggestedName, launchScore, token }) {
   const direction = trend.trendDirection === "rising" ? "rising" : "active";
+  const sourceLabel = trend.sourcePlatform === "x" ? "X post" : "TikTok attention cluster";
   const tokenContext = token
     ? "A related token already exists, so OINK treats this as saturation-aware review rather than a blind launch."
     : "No strong matching token was found, leaving potential white space before a market fully forms.";
 
-  return `${suggestedName} is a ${direction} TikTok attention cluster with ${articleFor(launchScore.label)} ${launchScore.label} launch score. The signal is interesting because OINK is seeing social demand before on-chain liquidity has clearly captured it. ${tokenContext}`;
+  return `${suggestedName} is a ${direction} viral ${sourceLabel} with ${articleFor(launchScore.label)} ${launchScore.label} launch score. The signal is interesting because OINK is seeing broad internet attention before on-chain liquidity has clearly captured it. ${tokenContext}`;
 }
 
 function formatTrendName(name) {
@@ -101,4 +107,12 @@ function scoreWord(word) {
   if (/^[a-z0-9]+$/i.test(word)) score += 2;
   if (word.length >= 4 && word.length <= 8) score += 2;
   return score;
+}
+
+function buildImagePrompt({ trend, suggestedName, suggestedTicker }) {
+  const mediaHint = trend.sourcePlatform === "x" && trend.hasMedia
+    ? `Inspired by the visual object or scene in the viral X media post: "${suggestedName}".`
+    : `Based on the trend name "${suggestedName}".`;
+
+  return `Clean playful internet-native OINK logo for "${suggestedName}": ${mediaHint} Bold mascot-style mark, simple silhouette, high contrast, readable at small sizes, no text except optional $${suggestedTicker} ticker treatment.`;
 }

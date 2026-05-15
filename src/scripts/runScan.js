@@ -4,7 +4,7 @@
 // ============================================================
 
 import { config } from "../config.js";
-import { fetchTrends } from "../tiktok.js";
+import { fetchAllAttentionSources } from "../providers/index.js";
 import { scoreTrend } from "../scoring.js";
 import { scoreLaunchOpportunity } from "../launchScoring.js";
 import { generateLaunchBrief } from "../launchBrief.js";
@@ -81,7 +81,7 @@ async function main() {
   initDB();
   initBot();
 
-  const trends = await fetchTrends();
+  const trends = await fetchAllAttentionSources();
 
   let alertsSent = 0;
 
@@ -105,13 +105,13 @@ async function main() {
       console.log(
         `🆕 [${score.total}/100] ${trend.name} — NEW ENTRY TO TOP 100 — ` +
         `${score.metrics.viewsPerHour.toLocaleString()} v/hr, ` +
-        `${trend.videoCount.toLocaleString()} videos ${arrow}`
+        `${formatParticipation(trend)} ${arrow}`
       );
     } else {
       console.log(
         `${icon} [${score.total}/100] ${trend.name} — ` +
         `${score.metrics.viewsPerHour.toLocaleString()} v/hr, ` +
-        `${trend.videoCount.toLocaleString()} videos ${arrow}`
+        `${formatParticipation(trend)} ${arrow}`
       );
     }
 
@@ -187,6 +187,13 @@ async function main() {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function formatParticipation(trend) {
+  if (trend.sourcePlatform === "x") {
+    return `${(trend.engagementCount || 0).toLocaleString()} engagements`;
+  }
+  return `${(trend.videoCount || 0).toLocaleString()} videos`;
 }
 
 main().catch(console.error);

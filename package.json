@@ -10,7 +10,8 @@
     "scan": "node src/scripts/runScan.js",
     "dashboard": "node src/scripts/dashboard.js",
     "test-alert": "node src/scripts/testAlert.js",
-    "test-launch": "node src/scripts/testLaunchBrief.js"
+    "test-launch": "node src/scripts/testLaunchBrief.js",
+    "test-x": "node src/scripts/testXProvider.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

@@ -265,6 +265,7 @@ export async function fetchTrends() {
  * Uses the earliest data point in the trend curve
  */
 export function getHoursActive(trend) {
+  if (trend.hoursActive) return Math.max(1, trend.hoursActive);
   if (trend.earliestVideo && trend.earliestVideo > 0) {
     const created = new Date(trend.earliestVideo * 1000);
     const now = new Date();
@@ -279,8 +280,9 @@ export function getHoursActive(trend) {
  * Get views per hour
  */
 export function getViewsPerHour(trend) {
+  if (trend.viewsPerHour) return Math.round(trend.viewsPerHour);
   const hours = getHoursActive(trend);
-  return Math.round(trend.totalViews / hours);
+  return Math.round((trend.totalViews || 0) / hours);
 }
 
 // ----------------------------------------------------------
