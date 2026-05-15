@@ -1,5 +1,5 @@
 // ============================================================
-// TRENDALPHA — MAIN ENTRY POINT (Production)
+// OINK — MAIN ENTRY POINT (Production)
 // ============================================================
 // Scans every 15 min, digest every 3 hours,
 // re-alerts on big score jumps
@@ -9,8 +9,11 @@ import cron from "node-cron";
 import { config } from "./config.js";
 import { fetchTrends } from "./tiktok.js";
 import { scoreTrend } from "./scoring.js";
+import { scoreLaunchOpportunity } from "./launchScoring.js";
+import { generateLaunchBrief } from "./launchBrief.js";
+import { preparePumpFunLaunch } from "./launchers/pumpfun.js";
 import { findToken } from "./tokens.js";
-import { initBot, sendAlert, sendDigest } from "./telegram.js";
+import { initBot, sendAlert, sendDigest, sendLaunchCandidate } from "./telegram.js";
 import {
   initDB,
   saveTrendSnapshot,
@@ -120,8 +123,12 @@ async function runScan() {
 
       // NEW ENTRIES always get alerted (minimum score 50)
       // Regular trends need to meet the normal threshold
+      const earlyLaunchScore = config.launch.enableLaunchCandidates
+        ? scoreLaunchOpportunity(trend, null, prevSnapshot)
+        : null;
       const meetsThreshold = isNewEntry ? score.total >= 50 : score.total >= config.scan.minScore;
-      if (!meetsThreshold) continue;
+      const mayQualifyForLaunch = earlyLaunchScore?.total >= config.launch.minLaunchScore;
+      if (!meetsThreshold && !mayQualifyForLaunch) continue;
       if (alertsSent >= MAX_ALERTS_PER_SCAN) continue;
 
       // Check if already alerted recently
@@ -139,10 +146,37 @@ async function runScan() {
       }
 
       const token = await findToken(trend.name);
+      const launchScore = config.launch.enableLaunchCandidates
+        ? scoreLaunchOpportunity(trend, token, prevSnapshot)
+        : null;
 
       if (alertsSent > 0) {
         await sleep(DELAY_BETWEEN_ALERTS_MS);
       }
+
+      if (launchScore?.total >= config.launch.minLaunchScore) {
+        const launchBrief = generateLaunchBrief({
+          trend,
+          trendScore: score,
+          launchScore,
+          token,
+        });
+        const preparedLaunch = preparePumpFunLaunch(launchBrief);
+        const sent = await sendLaunchCandidate({
+          trend,
+          trendScore: score,
+          launchScore,
+          launchBrief,
+          preparedLaunch,
+        });
+        if (sent) {
+          alertsSent++;
+          await recordAlert(trend, launchScore, token);
+        }
+        continue;
+      }
+
+      if (!meetsThreshold) continue;
 
       const sent = await sendAlert({ trend, score, token, isNewEntry });
       if (sent) {
@@ -200,8 +234,8 @@ async function runDigest() {
 async function main() {
   console.log(`
   ╔══════════════════════════════════════╗
-  ║    📡 TRENDALPHA v1.0               ║
-  ║    TikTok → Crypto Signals          ║
+  ║    🐷 OINK                           ║
+  ║    TikTok → Attention Markets       ║
   ╚══════════════════════════════════════╝
   `);
 
@@ -231,7 +265,7 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-process.on("SIGINT", () => { console.log("\n👋 Shutting down TrendAlpha..."); process.exit(0); });
-process.on("SIGTERM", () => { console.log("\n👋 Shutting down TrendAlpha..."); process.exit(0); });
+process.on("SIGINT", () => { console.log("\n👋 Shutting down OINK..."); process.exit(0); });
+process.on("SIGTERM", () => { console.log("\n👋 Shutting down OINK..."); process.exit(0); });
 
 main().catch(console.error);

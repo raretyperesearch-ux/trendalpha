@@ -8,7 +8,9 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "scan": "node src/scripts/runScan.js",
-    "test-alert": "node src/scripts/testAlert.js"
+    "dashboard": "node src/scripts/dashboard.js",
+    "test-alert": "node src/scripts/testAlert.js",
+    "test-launch": "node src/scripts/testLaunchBrief.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

@@ -1,76 +1,133 @@
-# 🐷 OINK
+# OINK
 
-**OINK, formerly TrendAlpha, is a TikTok trend intelligence bot that turns viral internet attention into crypto market signals.**
+**OINK, formerly TrendAlpha, is the attention layer for internet-native markets.**
 
-It scans TikTok Creative Center for rising hashtags, scores each trend based on velocity and momentum, checks whether a related token already exists on-chain, and sends actionable Telegram alerts before the crowd fully catches on.
+TrendAlpha was phase one: it scanned TikTok Creative Center trends and caught narratives before they had coins. OINK is phase two: it detects viral attention before markets exist, scores launch potential, generates launch briefs, and prepares launch candidates for review.
 
-Think of it as an early-warning radar for meme liquidity. A little pig snout pressed against the glass of internet culture, sniffing for the next thing before it becomes obvious.
+The scanner is active today, starting with TikTok trends first, then expanding into other attention markets. Real token launching, wallet handling, private-key actions, and transaction submission are not implemented yet.
 
----
+## Launch Flow
 
-## Name Change
+```txt
+Viral Post
+  -> Attention Scanner
+  -> Launch Score Engine
+  -> Autonomous Market Prepared
+  -> Launch Fees
+  -> $OINK Buybacks
+```
 
-This project was originally called **TrendAlpha**.
+Launch candidates are prepared only. The pump.fun adapter currently returns metadata and a safety note; it does not call APIs, touch wallets, or submit transactions.
 
-It is now known as **OINK**.
+## What The Bot Does
 
-Some code, file names, package names, logs, or repo references may still mention `trendalpha` while the project is being renamed. The product name going forward is **OINK**.
+- Scans TikTok Creative Center trends through RapidAPI.
+- Filters low-quality noise like generic hashtags, falling trends, and irrelevant categories.
+- Scores trend momentum with `src/scoring.js`.
+- Checks DexScreener and Birdeye for existing related tokens with `src/tokens.js`.
+- Scores launch potential with `src/launchScoring.js`.
+- Generates OINK launch briefs with `src/launchBrief.js`.
+- Sends Telegram alerts, digests, and launch candidate cards with `src/telegram.js`.
+- Stores trend snapshots and alert records in Supabase with `src/db.js`.
+- Shows a read-only terminal dashboard with `src/scripts/dashboard.js`.
 
----
+The repository, package name, and some compatibility references may still say `trendalpha`; user-facing product copy is OINK.
 
-## What It Does
+## Quick Start
 
-OINK watches TikTok for fast-moving cultural signals and turns them into structured crypto research alerts.
+### 1. Install
 
-Every scan, it:
+```bash
+git clone <your-repo>
+cd trendalpha
+npm install
+```
 
-1. Pulls trending TikTok hashtags from TikTok Creative Center
-2. Filters out low-quality noise like generic hashtags, spam trends, falling trends, and irrelevant categories
-3. Scores each trend from 0 to 100 using attention velocity, video count, acceleration, and rank momentum
-4. Searches DexScreener and Birdeye to see if a matching token already exists
-5. Sends high-conviction alerts to Telegram
-6. Posts a digest of top trends every 3 hours
-7. Stores trend snapshots in Supabase so it can detect score jumps over time
+### 2. Set Up Services
 
----
+**Telegram Bot**
 
-## Why This Exists
+1. Message [@BotFather](https://t.me/BotFather) on Telegram.
+2. Send `/newbot`, pick a name, and copy the bot token.
+3. Create a Telegram channel and add your bot as admin.
+4. Get the channel ID by forwarding a channel message to [@userinfobot](https://t.me/userinfobot).
 
-Memecoins are downstream of attention.
+**Supabase**
 
-A TikTok sound, hashtag, phrase, animal, joke, or weird internet moment can become a token before most traders even know the trend exists.
+1. Create a project at [supabase.com](https://supabase.com).
+2. Run the SQL in `supabase/migration.sql`.
+3. Copy your project URL and anon key from Settings -> API.
 
-OINK is designed to catch that window early.
+**TikTok Data**
 
-It does not predict price.  
-It detects cultural velocity.
+- Subscribe to a TikTok Creative Center API on [RapidAPI](https://rapidapi.com).
+- Set `RAPIDAPI_KEY`.
 
----
+**Birdeye**
 
-## Core Features
+- Optional, recommended for Solana token matching.
 
-### 📱 TikTok Trend Scanner
+### 3. Configure
 
-OINK pulls real TikTok Creative Center trend data using RapidAPI.
+```bash
+cp .env.example .env
+```
 
-It currently scans the top 100 trending hashtags in the US market, including:
+Set your keys, then tune thresholds:
 
-- Hashtag name
-- Total views
-- Video count
-- Current rank
-- Rank movement
-- 7-day trend curve
-- Trend direction
-- Acceleration
+```bash
+SCAN_INTERVAL_MINUTES=15
+MIN_SCORE_TO_ALERT=70
+MIN_LAUNCH_SCORE=82
+ENABLE_LAUNCH_CANDIDATES=true
+```
 
-The scanner fetches multiple pages of trending hashtags and sorts them by rising momentum and total attention.
+### 4. Test
 
-### 🎯 Trend Scoring Engine
+```bash
+npm run test-alert
+npm run test-launch
+npm run dashboard
+npm run scan
+```
 
-Each trend receives a score from 0 to 100.
+### 5. Run
 
-The score is based on:
+```bash
+npm start
+```
+
+## Project Structure
+
+```txt
+trendalpha/
+├── src/
+│   ├── index.js                  # Main cron loop
+│   ├── config.js                 # Env var loader
+│   ├── tiktok.js                 # TikTok trend scanner
+│   ├── scoring.js                # Trend score engine
+│   ├── launchScoring.js          # OINK launch score engine
+│   ├── launchBrief.js            # Launch brief generation
+│   ├── launchers/
+│   │   └── pumpfun.js            # Safe launch preparation stub
+│   ├── buybacks.js               # OINK fee/buyback model copy
+│   ├── tokens.js                 # DexScreener + Birdeye matching
+│   ├── telegram.js               # Alerts, digests, candidate cards
+│   ├── db.js                     # Supabase storage
+│   └── scripts/
+│       ├── dashboard.js
+│       ├── runScan.js
+│       ├── testAlert.js
+│       └── testLaunchBrief.js
+├── supabase/
+│   └── migration.sql
+├── .env.example
+└── package.json
+```
+
+## Trend Scoring
+
+Each trend receives a score from 0 to 100 based on:
 
 | Metric | Weight | What It Means |
 |--------|--------|---------------|
@@ -83,337 +140,73 @@ Conviction levels:
 
 | Score | Label |
 |-------|-------|
-| 85+ | 🔴 EXTREME |
-| 75-84 | 🟠 HIGH |
-| 65-74 | 🟡 MEDIUM |
-| 55-64 | ⚪ LOW |
-| Below 55 | 💤 NOISE |
+| 85+ | EXTREME |
+| 75-84 | HIGH |
+| 65-74 | MEDIUM |
+| 55-64 | LOW |
+| Below 55 | NOISE |
 
-### 🧹 Noise Filtering
+## Launch Scoring
 
-The bot filters out obvious junk before scoring.
+Launch opportunity scores are 0-100:
 
-It skips things like:
+| Metric | Max |
+|--------|-----|
+| Attention velocity | 25 |
+| Freshness | 20 |
+| Meme clarity | 15 |
+| Ticker strength | 15 |
+| Visual strength | 10 |
+| Saturation | 10 |
+| Risk | 5 |
 
-- Generic hashtags: `#fyp`, `#viral`, `#trending`, `#foryou`
-- Overly broad categories
-- Falling trends
-- Very long hashtag names
-- Certain non-English or irrelevant trend patterns
-- Generic trading/investing tags that do not represent fresh culture
+Labels:
 
-This keeps alerts focused on things that may actually become memeable.
+- **EXTREME**: 85+
+- **HIGH**: 75+
+- **MEDIUM**: 65+
+- **LOW**: 55+
+- **REJECT**: below 55
 
-### 🔍 Token Matching
+Existing tokens reduce saturation score when volume or liquidity suggests the market may already exist. No matching token increases saturation score because there may still be white space for a new market.
 
-For every high-scoring trend, OINK checks whether a related token already exists.
+## Telegram Alerts
 
-It searches:
+OINK sends formatted Telegram messages for:
 
-- **DexScreener** for multi-chain token matches
-- **Birdeye** for Solana token matches
+- Standard attention alerts.
+- Top-trend digests every 3 hours.
+- Launch candidate cards when a trend clears the launch score threshold.
 
-When a token is found, the alert includes:
+Launch candidate cards include source link, launch score, conviction, reasons, suggested market name and ticker, launch thesis, risk flags, existing token context, status, and the buyback flywheel.
 
-- Token symbol
-- Chain
-- Contract address
-- Market cap
-- 24h volume
-- Liquidity
-- 24h price change
-- Trading links
+## Terminal Dashboard
 
-If no token exists yet, the alert marks it as a potential watchlist item.
-
-### 📤 Telegram Alerts
-
-OINK sends formatted alerts directly to a Telegram channel.
-
-Alerts include:
-
-- Trend name
-- Score
-- Conviction level
-- TikTok link
-- Views per hour
-- Total views
-- Video count
-- Rank
-- Trend direction
-- Token data, if found
-- Refresh button for updating the trend in place
-
-### 📊 Trend Digest
-
-In addition to live alerts, OINK posts a digest every 3 hours.
-
-The digest summarizes the top trends by score, giving a clean overview of what is currently moving across TikTok.
-
-### 🔁 Re-Alerts on Score Jumps
-
-OINK avoids spamming the same trend repeatedly.
-
-However, if a trend was already alerted and its score jumps meaningfully, the bot can alert again.
-
-Current re-alert threshold:
-
-```js
-SCORE_JUMP_THRESHOLD = 10
-```
-
-So if a trend goes from 68 to 80, it can fire again.
-
----
-
-## How It Works
-
-The main production loop lives in `src/index.js`.
-
-On startup, the bot:
-
-1. Initializes Supabase
-2. Starts the Telegram bot
-3. Runs an immediate scan
-4. Schedules future scans
-5. Schedules recurring digests
-
-Default scan schedule:
-
-```txt
-Every 15 minutes
-```
-
-Default digest schedule:
-
-```txt
-Every 3 hours
-```
-
----
-
-## Project Structure
-
-```txt
-trendalpha/
-├── src/
-│   ├── index.js          # Main cron loop and production entry point
-│   ├── config.js         # Environment variable loader
-│   ├── tiktok.js         # TikTok Creative Center trend scanner
-│   ├── scoring.js        # Trend scoring engine
-│   ├── tokens.js         # DexScreener + Birdeye token matcher
-│   ├── telegram.js       # Telegram bot, alerts, digests, refresh button
-│   ├── db.js             # Supabase storage and alert history
-│   └── scripts/
-│       ├── testAlert.js  # Send a test Telegram alert
-│       └── runScan.js    # Run one manual scan
-├── supabase/
-│   └── migration.sql     # Database schema
-├── .env.example          # Environment variable template
-├── package.json
-└── README.md
-```
-
----
-
-## Requirements
-
-- Node.js 18+
-- Telegram bot token
-- Telegram channel ID
-- Supabase project
-- RapidAPI key for TikTok Creative Center data
-- Optional Birdeye API key
-
----
-
-## Installation
+Run:
 
 ```bash
-git clone https://github.com/raretyperesearch-ux/trendalpha.git
-cd trendalpha
-npm install
+npm run dashboard
 ```
 
----
+The dashboard reads latest trend snapshots and alert/token metadata from Supabase when available. If the existing tables are empty or unreachable, it renders a small static mock dashboard so the view can still be tested locally.
 
-## Environment Setup
+It displays latest scanned trends, launch score, suggested ticker, token existence, launch candidate status, and the $OINK buyback flywheel. It is read-only and does not launch tokens.
 
-Copy the example env file:
+## Safety Boundary
 
-```bash
-cp .env.example .env
-```
+OINK currently prepares launch candidates only. It does not:
 
-Then add your keys:
+- Store or request private keys.
+- Connect wallets.
+- Submit transactions.
+- Call pump.fun or launch-platform APIs.
+- Execute autonomous launches.
 
-```env
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_CHANNEL_ID=
+## Next
 
-SUPABASE_URL=
-SUPABASE_ANON_KEY=
+- Add more attention sources beyond TikTok.
+- Track launch candidate outcomes.
+- Add richer risk review and IP filtering.
+- Expand the launch adapter once transaction safety, approvals, and custody design are explicit.
 
-RAPIDAPI_KEY=
-BIRDEYE_API_KEY=
-
-SCAN_INTERVAL_MINUTES=15
-MIN_SCORE_TO_ALERT=65
-```
-
----
-
-## Telegram Setup
-
-1. Message [@BotFather](https://t.me/BotFather)
-2. Create a new bot with `/newbot`
-3. Copy the bot token
-4. Create a Telegram channel
-5. Add your bot as an admin
-6. Get your channel ID
-7. Add the ID to `.env`
-
----
-
-## Supabase Setup
-
-1. Create a project at [supabase.com](https://supabase.com)
-2. Open the SQL editor
-3. Paste the contents of `supabase/migration.sql`
-4. Run the migration
-5. Copy your project URL and anon key into `.env`
-
-Supabase is used to store:
-
-- Trend snapshots
-- Previous scores
-- Alert history
-- Recently alerted trends
-
-This allows the bot to compare new scans against old scans.
-
----
-
-## Running Locally
-
-Send a test alert:
-
-```bash
-npm run test-alert
-```
-
-Run one scan manually:
-
-```bash
-npm run scan
-```
-
-Run the production bot:
-
-```bash
-npm start
-```
-
-Run in development mode:
-
-```bash
-npm run dev
-```
-
----
-
-## Deployment
-
-Railway is the simplest deployment option.
-
-1. Push this repo to GitHub
-2. Create a new Railway project
-3. Deploy from GitHub
-4. Add your environment variables
-5. Start the service with:
-
-```bash
-npm start
-```
-
-The bot will stay online and run scans automatically.
-
----
-
-## Scripts
-
-```json
-{
-  "start": "node src/index.js",
-  "dev": "node --watch src/index.js",
-  "scan": "node src/scripts/runScan.js",
-  "test-alert": "node src/scripts/testAlert.js"
-}
-```
-
----
-
-## Example Alert
-
-```txt
-🔴 OINK VIRAL TREND ALERT
-
-🎯 SCORE: 88/100
-█████████░
-
-📱 TIKTOK TREND
-#exampletrend
-
-📈 Rising | Rank #12
-
-⚡ Views/hour: 420K
-👁 Total views: 82M
-🎬 Videos made: 18K
-
-✅ TOKEN FOUND
-EXAMPLE SOL
-
-💰 MCap: $2.4M
-📊 24h Vol: $780K
-💧 Liquidity: $120K
-📈 24h: +42.6%
-
-CA: xxxxxxxx
-```
-
----
-
-## Important Notes
-
-OINK is not a trading bot.
-
-It does not place trades, custody funds, or guarantee profitable signals.
-
-It is an attention intelligence system that helps surface fast-moving TikTok trends and related tokens.
-
-Use it for research, watchlists, and early discovery.
-
----
-
-## Roadmap Ideas
-
-- Web dashboard
-- Premium Telegram tier
-- Discord alerts
-- Pump.fun launch monitor
-- Better TikTok sound support
-- Token launch detection
-- Historical trend charts
-- Weekly hit-rate reports
-- Wallet tracking
-- API access
-
----
-
-## Disclaimer
-
-This project is for informational and research purposes only.
-
-Nothing here is financial advice.  
-Memecoins are volatile, illiquid, weird little goblin rockets.  
-Do your own research.
+**Not financial advice. DYOR.**

@@ -6,8 +6,11 @@
 import { config } from "../config.js";
 import { fetchTrends } from "../tiktok.js";
 import { scoreTrend } from "../scoring.js";
+import { scoreLaunchOpportunity } from "../launchScoring.js";
+import { generateLaunchBrief } from "../launchBrief.js";
+import { preparePumpFunLaunch } from "../launchers/pumpfun.js";
 import { findToken } from "../tokens.js";
-import { initBot, sendAlert } from "../telegram.js";
+import { initBot, sendAlert, sendLaunchCandidate } from "../telegram.js";
 import { initDB, saveTrendSnapshot, getPreviousSnapshot, wasAlertedRecently, getLastAlertScore, recordAlert } from "../db.js";
 
 // ----------------------------------------------------------
@@ -112,8 +115,12 @@ async function main() {
       );
     }
 
+    const earlyLaunchScore = config.launch.enableLaunchCandidates
+      ? scoreLaunchOpportunity(trend, null, prevSnapshot)
+      : null;
     const meetsThreshold = isNewEntry ? score.total >= 50 : score.total >= config.scan.minScore;
-    if (meetsThreshold) {
+    const mayQualifyForLaunch = earlyLaunchScore?.total >= config.launch.minLaunchScore;
+    if (meetsThreshold || mayQualifyForLaunch) {
       // Cap alerts per scan
       if (alertsSent >= MAX_ALERTS_PER_SCAN) {
         console.log(`   ⏸️  Max alerts (${MAX_ALERTS_PER_SCAN}) reached — skipping rest`);
@@ -132,12 +139,39 @@ async function main() {
       }
 
       const token = await findToken(trend.name);
+      const launchScore = config.launch.enableLaunchCandidates
+        ? scoreLaunchOpportunity(trend, token, prevSnapshot)
+        : null;
 
       // Delay between alerts to avoid Telegram rate limits
       if (alertsSent > 0) {
         console.log(`   ⏳ Waiting ${DELAY_BETWEEN_ALERTS_MS / 1000}s...`);
         await sleep(DELAY_BETWEEN_ALERTS_MS);
       }
+
+      if (launchScore?.total >= config.launch.minLaunchScore) {
+        const launchBrief = generateLaunchBrief({
+          trend,
+          trendScore: score,
+          launchScore,
+          token,
+        });
+        const preparedLaunch = preparePumpFunLaunch(launchBrief);
+        const sent = await sendLaunchCandidate({
+          trend,
+          trendScore: score,
+          launchScore,
+          launchBrief,
+          preparedLaunch,
+        });
+        if (sent) {
+          alertsSent++;
+          await recordAlert(trend, launchScore, token);
+        }
+        continue;
+      }
+
+      if (!meetsThreshold) continue;
 
       const sent = await sendAlert({ trend, score, token, isNewEntry });
       if (sent) {

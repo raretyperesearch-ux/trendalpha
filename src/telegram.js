@@ -9,6 +9,7 @@ import { scoreTrend } from "./scoring.js";
 import { formatNumber, formatCount } from "./tokens.js";
 import { findToken } from "./tokens.js";
 import { getViewsPerHour, getHoursActive } from "./tiktok.js";
+import { getBuybackSummary } from "./buybacks.js";
 import https from "node:https";
 
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || "";
@@ -21,13 +22,13 @@ export function initBot() {
 
   bot.command("start", (ctx) =>
     ctx.reply(
-      "📱 TikTok Viral Trends Bot\n\nTikTok trends → crypto signals.\n\nJoin the channel for alerts!",
+      "🐷 OINK\n\nTikTok attention → internet-native markets.\n\nJoin the channel for alerts!",
       { parse_mode: "Markdown" }
     )
   );
 
   bot.command("status", (ctx) =>
-    ctx.reply("✅ Bot is running. Scanning every 15 minutes.")
+    ctx.reply("✅ OINK is running. Scanning every 15 minutes.")
   );
 
   // ---- REFRESH BUTTON HANDLER ----
@@ -233,7 +234,7 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
   if (isNewEntry) {
     msg += `🆕 <b>NEW TREND JUST ENTERED TOP 100</b>\n\n`;
   }
-  msg += `${conviction.emoji} <b>TIKTOK VIRAL TRENDS BOT</b>\n\n`;
+  msg += `${conviction.emoji} <b>OINK ATTENTION ALERT</b>\n\n`;
 
   // Score
   msg += `🎯 SCORE: <b>${score.total}</b>/100\n`;
@@ -301,7 +302,7 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
   } else {
     msg += `⚠️ <b>NO TOKEN YET</b>\n\n`;
     msg += `No matching token found.\n`;
-    msg += `Watch pump.fun for launches.\n\n`;
+    msg += `OINK is watching for launch potential.\n\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━\n`;
     msg += `🔗 <b>Trade (save 40% on fees):</b>\n`;
     msg += `<a href="https://axiom.trade/@viraltok">Axiom</a>`;
@@ -318,7 +319,7 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
 }
 
 function escapeHtml(text) {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return String(text ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 /**
@@ -330,7 +331,7 @@ export async function sendDigest(trends, scores) {
   const now = new Date();
   const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "America/New_York" });
 
-  let msg = `📊 <b>TRENDING DIGEST</b>\n`;
+  let msg = `📊 <b>OINK TRENDING DIGEST</b>\n`;
   msg += `<i>${timeStr} ET</i>\n\n`;
 
   // Top 10 trends
@@ -387,4 +388,98 @@ export async function sendDigest(trends, scores) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function sendLaunchCandidate({ trend, trendScore, launchScore, launchBrief, preparedLaunch }) {
+  if (!bot) throw new Error("Bot not initialized — call initBot() first");
+
+  const message = formatLaunchCandidateMessage({
+    trend,
+    trendScore,
+    launchScore,
+    launchBrief,
+    preparedLaunch,
+  });
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await bot.api.sendMessage(config.telegram.channelId, message, {
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+      });
+      console.log(`📤 Launch candidate sent: ${trend.name} (launch score: ${launchScore.total})`);
+      return true;
+    } catch (err) {
+      if (err.message?.includes("429") || err.message?.includes("Too Many Requests")) {
+        const match = err.message.match(/retry after (\d+)/);
+        const waitSec = match ? parseInt(match[1]) + 1 : 5 * attempt;
+        console.log(`   ⏳ Rate limited, waiting ${waitSec}s (attempt ${attempt}/3)...`);
+        await sleep(waitSec * 1000);
+      } else {
+        console.error("❌ Failed to send launch candidate:", err.message);
+        return false;
+      }
+    }
+  }
+
+  console.error("❌ Failed after 3 retries for launch candidate:", trend.name);
+  return false;
+}
+
+function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBrief, preparedLaunch }) {
+  const reasons = launchScore.reasons?.length
+    ? launchScore.reasons.slice(0, 3)
+    : ["Attention velocity cleared OINK launch review.", "Market formation appears early.", "Trend is suitable for candidate preparation."];
+
+  let msg = `🐷 <b>OINK LAUNCH CANDIDATE</b>\n\n`;
+  msg += `Launch Score: <b>${launchScore.total}/100</b>\n`;
+  msg += `Conviction: <b>${escapeHtml(launchScore.label)}</b>\n`;
+  msg += `Trend Score: <b>${trendScore.total}/100</b>\n\n`;
+
+  msg += `Source: <b>TikTok</b>\n`;
+  msg += `Trend: <b>${escapeHtml(trend.name)}</b>\n`;
+  msg += `Source Post: <a href="${escapeHtml(launchBrief.sourceUrl)}">link</a>\n\n`;
+
+  msg += `<b>Why OINK Selected It:</b>\n`;
+  for (const reason of reasons) {
+    msg += `• ${escapeHtml(reason)}\n`;
+  }
+
+  msg += `\n<b>Suggested Market:</b>\n`;
+  msg += `Name: ${escapeHtml(launchBrief.suggestedName)}\n`;
+  msg += `Ticker: $${escapeHtml(launchBrief.suggestedTicker)}\n\n`;
+
+  msg += `<b>Launch Thesis:</b>\n`;
+  msg += `${escapeHtml(launchBrief.thesis)}\n\n`;
+
+  if (launchBrief.existingToken) {
+    const token = launchBrief.existingToken;
+    msg += `<b>Existing Token:</b>\n`;
+    msg += `${escapeHtml(token.tokenName || "Unknown")} on ${escapeHtml(token.chain || "unknown")}\n`;
+    msg += `<code>`;
+    msg += `MCap:      ${formatNumber(token.marketCap)}\n`;
+    msg += `24h Vol:   ${formatNumber(token.volume24h)}\n`;
+    msg += `Liquidity: ${formatNumber(token.liquidity)}\n`;
+    msg += `</code>\n`;
+    if (token.url) msg += `<a href="${escapeHtml(token.url)}">Market link</a>\n`;
+    msg += `\n`;
+  }
+
+  if (launchBrief.riskFlags?.length) {
+    msg += `<b>Risk Flags:</b>\n`;
+    for (const flag of launchBrief.riskFlags) {
+      msg += `• ${escapeHtml(flag)}\n`;
+    }
+    msg += `\n`;
+  }
+
+  msg += `<b>Status:</b>\n`;
+  msg += `${escapeHtml(preparedLaunch.note)}\n`;
+  msg += `Prepared For Autonomous Launch Review\n\n`;
+
+  msg += `<b>Flywheel:</b>\n`;
+  msg += `Viral Attention → Autonomous Launch → Fees → $OINK Buybacks\n`;
+  msg += `<i>${escapeHtml(getBuybackSummary())}</i>`;
+
+  return msg;
 }

@@ -7,6 +7,10 @@ const required = (key) => {
 };
 
 const optional = (key, fallback) => process.env[key] || fallback;
+const optionalBool = (key, fallback) => {
+  const val = optional(key, fallback ? "true" : "false").toLowerCase();
+  return ["1", "true", "yes", "on"].includes(val);
+};
 
 export const config = {
   telegram: {
@@ -23,5 +27,9 @@ export const config = {
   scan: {
     intervalMinutes: parseInt(optional("SCAN_INTERVAL_MINUTES", "15")),
     minScore: parseInt(optional("MIN_SCORE_TO_ALERT", "70")),
+  },
+  launch: {
+    minLaunchScore: parseInt(optional("MIN_LAUNCH_SCORE", "82")),
+    enableLaunchCandidates: optionalBool("ENABLE_LAUNCH_CANDIDATES", true),
   },
 };
