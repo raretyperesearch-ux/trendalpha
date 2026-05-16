@@ -53,6 +53,8 @@ export const config = {
     minShares: optionalInt("X_MIN_SHARES", "500"),
     minShareVelocity: optionalInt("X_MIN_SHARE_VELOCITY", "100"),
     minViewsPerHour: optionalInt("X_MIN_VIEWS_PER_HOUR", "50000"),
+    minEngagementPerHour: optionalInt("X_MIN_ENGAGEMENT_PER_HOUR", "250"),
+    minAttentionShapeScore: optionalInt("X_MIN_ATTENTION_SHAPE_SCORE", "25000"),
     maxPostAgeHours: optionalInt("X_MAX_POST_AGE_HOURS", "12"),
     resultsPerQuery: optionalInt("X_RESULTS_PER_QUERY", "25"),
   },

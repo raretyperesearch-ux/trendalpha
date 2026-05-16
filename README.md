@@ -95,6 +95,8 @@ Example:
 X_SEARCH_QUERIES=(no way OR insane OR wild) has:media lang:en -is:retweet -is:reply|(dog OR cat OR robot) has:media lang:en -is:retweet -is:reply
 ```
 
+When X impressions are unavailable, OINK still filters candidates with engagement velocity and attention shape score. Tune `X_MIN_ENGAGEMENT_PER_HOUR` and `X_MIN_ATTENTION_SHAPE_SCORE` if Railway logs show good posts being rejected below thresholds.
+
 ### X Narrative Tags
 
 For X-sourced launch candidates, OINK generates a hashtag that ties the launch back to the original viral tweet. The tag gives Telegram users a clean phrase to copy, share, and point back at the attention source.

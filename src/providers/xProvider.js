@@ -3,11 +3,13 @@ import { config } from "../config.js";
 const X_RECENT_SEARCH_URL = "https://api.twitter.com/2/tweets/search/recent";
 
 const DEFAULT_SEARCH_QUERIES = [
-  "(no way OR insane OR wild OR crazy OR unbelievable) has:media lang:en -is:retweet -is:reply",
+  '("no way" OR insane OR wild OR crazy OR unbelievable) has:media lang:en -is:retweet -is:reply',
   "(dog OR cat OR animal OR robot OR ai OR food OR game OR streamer) has:media lang:en -is:retweet -is:reply",
-  "(caught on camera OR went viral OR funniest OR wildest OR this is insane) lang:en -is:retweet -is:reply",
-  "(bro OR no way OR i'm crying OR this killed me OR what is happening) lang:en -is:retweet -is:reply",
-  "(airport OR delivery robot OR mascot OR restaurant OR school OR sports OR concert OR livestream) has:media lang:en -is:retweet -is:reply",
+  '("caught on camera" OR "went viral" OR funniest OR wildest OR "this is insane") lang:en -is:retweet -is:reply',
+  '(bro OR "no way" OR "im crying" OR "this killed me" OR "what is happening") lang:en -is:retweet -is:reply',
+  "(airport OR robot OR mascot OR restaurant OR school OR sports OR concert OR livestream) has:media lang:en -is:retweet -is:reply",
+  "(video OR photo OR clip OR moment OR scene) has:media lang:en -is:retweet -is:reply",
+  "(funny OR hilarious OR wild OR unreal OR bizarre) lang:en -is:retweet -is:reply",
 ];
 
 export const CRYPTO_SATURATED_TERMS = [
@@ -74,12 +76,34 @@ export async function fetchXAttention() {
 
     const usersById = indexById(response.includes?.users || []);
     const mediaByKey = indexByKey(response.includes?.media || []);
-    for (const tweet of response.data || []) {
+    const rawTweets = response.data || [];
+    let acceptedCount = 0;
+    const rejected = [];
+
+    for (const tweet of rawTweets) {
       if (seen.has(tweet.id)) continue;
       seen.add(tweet.id);
 
       const normalized = normalizeTweet(tweet, usersById, mediaByKey);
-      if (passesFilters(normalized, tweet)) posts.push(normalized);
+      const rejectionReason = getFilterRejectionReason(normalized, tweet);
+      if (!rejectionReason) {
+        posts.push(normalized);
+        acceptedCount += 1;
+      } else {
+        rejected.push({ post: normalized, reason: rejectionReason });
+      }
+    }
+
+    console.log(`   🔎 X query accepted ${acceptedCount}/${rawTweets.length} posts: ${query}`);
+    if (acceptedCount === 0 && rejected.length > 0) {
+      const strongest = rejected.sort((a, b) => (b.post.attentionShapeScore || 0) - (a.post.attentionShapeScore || 0))[0];
+      console.log(
+        `      Top rejected: ${strongest.reason}; ` +
+        `${strongest.post.viewsPerHour.toLocaleString()} v/hr, ` +
+        `${strongest.post.shareVelocity.toLocaleString(undefined, { maximumFractionDigits: 1 })} shares/hr, ` +
+        `${strongest.post.engagementPerHour.toLocaleString()} eng/hr, ` +
+        `shape ${strongest.post.attentionShapeScore.toLocaleString()}`
+      );
     }
   }
 
@@ -264,20 +288,27 @@ function normalizeTweet(tweet, usersById, mediaByKey) {
 }
 
 function passesFilters(post, tweet) {
-  if (tweet.lang && tweet.lang !== "en") return false;
-  if (tweet.possibly_sensitive) return false;
-  if (isRetweetOrReply(tweet.text)) return false;
+  return !getFilterRejectionReason(post, tweet);
+}
+
+function getFilterRejectionReason(post, tweet) {
+  if (tweet.lang && tweet.lang !== "en") return "non_english";
+  if (tweet.possibly_sensitive) return "possibly_sensitive";
+  if (isRetweetOrReply(tweet.text)) return "retweet_or_reply";
 
   const ageHours = getHoursSince(tweet.created_at);
-  if (ageHours > config.x.maxPostAgeHours) return false;
+  if (ageHours > config.x.maxPostAgeHours) return `too_old_${Math.round(ageHours)}h`;
 
-  return (
+  const meetsAttentionThreshold =
     post.totalViews >= config.x.minViews ||
     post.likeCount >= config.x.minLikes ||
     post.shareCount >= config.x.minShares ||
     post.shareVelocity >= config.x.minShareVelocity ||
-    post.viewsPerHour >= config.x.minViewsPerHour
-  );
+    post.viewsPerHour >= config.x.minViewsPerHour ||
+    post.engagementPerHour >= config.x.minEngagementPerHour ||
+    post.attentionShapeScore >= config.x.minAttentionShapeScore;
+
+  return meetsAttentionThreshold ? null : "below_attention_thresholds";
 }
 
 function getAttentionShapeScore({
