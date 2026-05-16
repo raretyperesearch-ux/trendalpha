@@ -90,6 +90,11 @@ function buildScoreBreakdown(score, trend) {
       quoteToLikeRate: Number(trend.quoteToLikeRate || 0),
       viralShape: trend.viralShape || "unknown",
       momentumTrend: trend.momentumTrend || "stable",
+      launchWorthinessScore: Number(trend.launchWorthinessScore || 0),
+      launchRecommendation: trend.launchRecommendation || "WATCH",
+      marketArchetype: trend.marketArchetype || "trendwave",
+      narrativeHalfLifeEstimate: trend.narrativeHalfLifeEstimate || "flash trend",
+      copycatSwarm: Boolean(trend.copycatSwarm),
     };
   }
   return breakdown;

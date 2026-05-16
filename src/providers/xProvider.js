@@ -1,4 +1,5 @@
 import { config } from "../config.js";
+import { applyLaunchWorthiness } from "../launchWorthiness.js";
 
 const X_RECENT_SEARCH_URL = "https://api.twitter.com/2/tweets/search/recent";
 
@@ -429,7 +430,7 @@ function normalizeTweet(tweet, usersById, mediaByKey, queryLane = "broad_media_s
     quoteExplosion,
   });
 
-  return {
+  const post = {
     id: `x-${tweet.id}`,
     sourcePlatform: "x",
     sourceUrl: `https://x.com/${author?.username || "i"}/status/${tweet.id}`,
@@ -489,6 +490,7 @@ function normalizeTweet(tweet, usersById, mediaByKey, queryLane = "broad_media_s
     riskFlags,
     cryptoSaturatedLanguage,
   };
+  return applyLaunchWorthiness(post);
 }
 
 function passesFilters(post, tweet) {

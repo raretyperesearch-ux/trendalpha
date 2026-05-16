@@ -9,6 +9,7 @@ import cron from "node-cron";
 import { config } from "./config.js";
 import { fetchAllAttentionSources } from "./providers/index.js";
 import { applyXSnapshotPersistence } from "./providers/xProvider.js";
+import { applyLaunchWorthiness } from "./launchWorthiness.js";
 import { scoreTrend } from "./scoring.js";
 import { scoreLaunchOpportunity } from "./launchScoring.js";
 import { generateLaunchBrief } from "./launchBrief.js";
@@ -149,6 +150,10 @@ async function runScan() {
       }
 
       const token = await findToken(trend);
+      applyLaunchWorthiness(trend, token);
+      if (trend.sourcePlatform === "x" && trend.launchWorthinessScore >= 62) {
+        logLaunchWorthiness(trend);
+      }
       const launchScore = config.launch.enableLaunchCandidates
         ? scoreLaunchOpportunity(trend, token, prevSnapshot)
         : null;
@@ -292,6 +297,15 @@ function logXPropagationSnapshot(trend) {
     `prop=${Number(trend.propagationRatio || 0).toFixed(3)} ` +
     `quoteExplosion=${trend.quoteExplosion ? "yes" : "no"} ` +
     `eng/follow=${Number(trend.engagementToFollowerRate || 0).toFixed(4)}`
+  );
+}
+
+function logLaunchWorthiness(trend) {
+  console.log(
+    `   🧠 Launch worthiness: score=${trend.launchWorthinessScore}/100 ` +
+    `archetype=${trend.marketArchetype} halfLife=${trend.narrativeHalfLifeEstimate} ` +
+    `remix=${trend.remixabilityLabel} community=${trend.communityFormationLabel} ` +
+    `copycatSwarm=${trend.copycatSwarm ? "yes" : "no"} recommendation=${trend.launchRecommendation}`
   );
 }
 

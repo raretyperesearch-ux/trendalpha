@@ -92,16 +92,28 @@ export function scoreLaunchOpportunity(trend, token = null, previousSnapshot = n
 
   const total = Math.max(
     0,
-    Math.min(100, Object.values(breakdown).reduce((sum, value) => sum + value, 0))
+    Math.min(100, getLaunchTotal({ trend, breakdown }))
   );
 
   return {
     total,
     label: getLabel(total),
     breakdown,
+    launchWorthinessScore: trend.launchWorthinessScore || null,
+    launchRecommendation: trend.launchRecommendation || null,
     reasons: getReasons({ trend, token, viewsPerHour, isNewEntry, breakdown, riskFlags }),
     riskFlags,
   };
+}
+
+function getLaunchTotal({ trend, breakdown }) {
+  const base = Object.values(breakdown).reduce((sum, value) => sum + value, 0);
+  if (trend.sourcePlatform !== "x" || !Number.isFinite(trend.launchWorthinessScore)) return base;
+  const blended = base * 0.68 + trend.launchWorthinessScore * 0.32;
+  if (trend.launchRecommendation === "DO_NOT_LAUNCH") return Math.min(blended, 54);
+  if (trend.launchRecommendation === "WATCH") return Math.min(blended, 64);
+  if (trend.launchRecommendation === "BREAKOUT_FORMING") return Math.max(blended, 82);
+  return blended;
 }
 
 function scoreAttentionVelocity({ trend, viewsPerHour, previousSnapshot, riskFlags = [] }) {
@@ -330,6 +342,14 @@ function getXReasons({ trend, token, viewsPerHour, breakdown, riskFlags }) {
 
   if (trend.engagementPerHour >= 500 || breakdown.attentionVelocity >= 15) {
     reasons.push(`High X engagement velocity at ${formatCount(trend.engagementPerHour || 0)} engagements/hour.`);
+  }
+
+  if (trend.launchWorthinessScore >= 75) {
+    reasons.push(`Launch-worthiness is ${trend.launchWorthinessScore}/100 with ${trend.launchRecommendation} recommendation.`);
+  }
+
+  if (trend.marketArchetype) {
+    reasons.push(`Market archetype: ${trend.marketArchetype}; narrative half-life: ${trend.narrativeHalfLifeEstimate}.`);
   }
 
   if ((trend.quoteCount || 0) >= 250 || (trend.repostCount || 0) >= 1_000) {

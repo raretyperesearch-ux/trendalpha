@@ -11,7 +11,7 @@
         OINK
 ```
 
-**OINK is an autonomous attention-layer engine for internet-native markets.**
+**OINK is an autonomous attention-layer engine that evaluates whether internet attention can sustain market identity.**
 
 OINK was formerly TrendAlpha. TrendAlpha proved the first idea: internet trends can become market narratives before most people notice them. OINK takes the next step: it watches viral attention across social platforms, scores whether that attention could become a market, generates launch briefs, and prepares candidates for human review.
 
@@ -59,6 +59,19 @@ OINK prioritizes detecting attention before markets exist. Token matching is gat
 - `NO TOKEN FOUND`: no canonical market, so the post remains an attention-market candidate.
 
 Generic terms like `law`, `cat`, `ai`, `dog`, `base`, `meme`, `coin`, `official`, and `finance` are heavily discounted. Copycat meme tokens and narrative hijacks should not be treated as canonical markets.
+
+## Launch Worthiness
+
+OINK does not assume every viral post deserves a market. It evaluates whether attention can form a durable market identity using narrative clarity, repeatability, remixability, mascot potential, symbolic density, phrase stickiness, identity formation, cross-community persistence, propagation persistence, and meme mutation potential.
+
+Market formation outputs include:
+
+- **Launch worthiness score**: whether attention is suitable for autonomous market creation.
+- **Market archetype**: mascot, phrase, personality, event, aesthetic, identity, movement, reaction, chaos, collectible, anti-meme, or trendwave.
+- **Narrative half-life**: flash trend, short-cycle meme, medium-cycle narrative, or persistent identity candidate.
+- **Launch recommendation**: `DO_NOT_LAUNCH`, `WATCH`, `EARLY_OPPORTUNITY`, `HIGH_CONVICTION`, or `BREAKOUT_FORMING`.
+
+Copycat swarms lower launch worthiness because polluted narratives are harder to own. Unclaimed attention with strong propagation and no canonical market receives a boost.
 
 ## Launch Flow
 

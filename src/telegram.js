@@ -235,6 +235,9 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
     msg += `🆕 <b>NEW TREND JUST ENTERED TOP 100</b>\n\n`;
   }
   msg += `${trend.sourcePlatform === "x" ? "🐷" : conviction.emoji} <b>${trend.sourcePlatform === "x" ? "OINK X ATTENTION SIGNAL" : "OINK ATTENTION ALERT"}</b>\n\n`;
+  if (trend.sourcePlatform === "x" && trend.launchWorthinessScore !== undefined) {
+    msg = msg.replace("OINK X ATTENTION SIGNAL", "OINK MARKET FORMATION SIGNAL");
+  }
 
   // Score
   msg += `🎯 SCORE: <b>${score.total}</b>/100\n`;
@@ -250,6 +253,14 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
     msg += `Viral Shape: <b>${escapeHtml(formatLabel(trend.viralShape || "compounding"))}</b>\n`;
     msg += `Momentum: <b>${escapeHtml(formatLabel(trend.momentumTrend || "stable"))}</b>\n`;
     msg += `Discovery Lane: <b>${escapeHtml(trend.discoveryLane || "broad_media_stream")}</b>\n`;
+    if (trend.launchWorthinessScore !== undefined) {
+      msg += `Launch Worthiness: <b>${trend.launchWorthinessScore}/100</b>\n`;
+      msg += `Archetype: <b>${escapeHtml(formatLabel(trend.marketArchetype || "trendwave"))}</b>\n`;
+      msg += `Narrative Half-Life: <b>${escapeHtml(formatLabel(trend.narrativeHalfLifeEstimate || "flash trend"))}</b>\n`;
+      msg += `Community Formation: <b>${escapeHtml(trend.communityFormationLabel || "LOW")}</b>\n`;
+      msg += `Remixability: <b>${escapeHtml(trend.remixabilityLabel || "LOW")}</b>\n`;
+      msg += `Recommendation: <b>${escapeHtml(trend.launchRecommendation || "WATCH")}</b>\n`;
+    }
     if (trend.quoteExplosion) msg += `Quote Explosion Detected ⚡\n`;
     msg += `<b>${escapeHtml(trend.name)}</b>\n`;
   } else if (trend.type === "song") {
@@ -482,6 +493,15 @@ function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBr
   msg += `${isX ? "Source Tweet" : "Source Post"}: <a href="${escapeHtml(launchBrief.sourceUrl)}">link</a>\n\n`;
 
   if (isX) {
+    if (trend.launchWorthinessScore !== undefined) {
+      msg += `<b>Market Formation:</b>\n`;
+      msg += `Launch Worthiness: <b>${trend.launchWorthinessScore}/100</b>\n`;
+      msg += `Archetype: <b>${escapeHtml(formatLabel(trend.marketArchetype || "trendwave"))}</b>\n`;
+      msg += `Narrative Half-Life: <b>${escapeHtml(formatLabel(trend.narrativeHalfLifeEstimate || "flash trend"))}</b>\n`;
+      msg += `Community Formation: <b>${escapeHtml(trend.communityFormationLabel || "LOW")}</b>\n`;
+      msg += `Remixability: <b>${escapeHtml(trend.remixabilityLabel || "LOW")}</b>\n`;
+      msg += `Recommendation: <b>${escapeHtml(trend.launchRecommendation || "WATCH")}</b>\n\n`;
+    }
     msg += `Viral Shape: <b>${escapeHtml(formatLabel(trend.viralShape || "compounding"))}</b>\n`;
     msg += `Momentum: <b>${escapeHtml(formatLabel(trend.momentumTrend || "stable"))}</b>\n`;
     msg += `Discovery Lane: <b>${escapeHtml(trend.discoveryLane || "broad_media_stream")}</b>\n`;

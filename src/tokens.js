@@ -163,9 +163,19 @@ export async function findToken(trendOrName) {
       return { ...token, ...diagnostics };
     })
     .sort((a, b) => b.matchConfidence - a.matchConfidence);
+  trend.copycatSwarm = detectCopycatSwarm(evaluated);
+  trend.marketMatchCandidates = evaluated.slice(0, 5).map((candidate) => ({
+    tokenName: candidate.tokenName,
+    tokenSymbol: candidate.tokenSymbol,
+    chain: candidate.chain,
+    confidence: candidate.matchConfidence,
+    rejected: candidate.rejected,
+    rejectionReasons: candidate.rejectionReasons,
+  }));
 
   if (evaluated.length === 0) {
     console.log(`❌ NO TOKEN FOUND for "${trend.name}"`);
+    trend.marketMatchStatus = "none";
     markLaunchOpportunity(trend, null);
     return null;
   }
@@ -177,12 +187,14 @@ export async function findToken(trendOrName) {
   const best = evaluated[0];
   if (best.rejected || best.matchConfidence < config.tokenMatching.possibleThreshold) {
     console.log(`❌ NO TOKEN FOUND for "${trend.name}"`);
+    trend.marketMatchStatus = "none";
     markLaunchOpportunity(trend, null);
     return null;
   }
 
   if (best.matchConfidence < config.tokenMatching.confidenceThreshold) {
     console.log(`⚠️  POSSIBLE MARKET DETECTED: ${best.tokenName} (${best.tokenSymbol}) confidence=${best.matchConfidence.toFixed(2)}; CA withheld`);
+    trend.marketMatchStatus = "possible";
     markLaunchOpportunity(trend, best);
     return {
       ...best,
@@ -193,6 +205,7 @@ export async function findToken(trendOrName) {
   }
 
   console.log(`✅ CANONICAL MARKET FOUND: ${best.tokenName} (${best.tokenSymbol}) on ${best.chain} confidence=${best.matchConfidence.toFixed(2)}`);
+  trend.marketMatchStatus = "canonical";
   trend.launchOpportunity = false;
   return {
     ...best,
@@ -534,6 +547,22 @@ function markLaunchOpportunity(trend, possibleToken) {
     trend.launchOpportunity = true;
     if (possibleToken?.matchStatus === "possible") trend.possibleMarket = possibleToken;
   }
+}
+
+function detectCopycatSwarm(evaluated) {
+  const weakUnrelated = evaluated.filter((candidate) => (
+    candidate.matchConfidence < 0.5 &&
+    candidate.rejectionReasons.some((reason) => (
+      reason.includes("duplicate meme variant") ||
+      reason.includes("narrative hijacking") ||
+      reason.includes("no canonical phrase")
+    ))
+  ));
+  const freshWeak = evaluated.filter((candidate) => {
+    const ageHours = getTokenAgeHours(candidate);
+    return ageHours !== null && ageHours < 24 && candidate.liquidity < 25_000;
+  });
+  return weakUnrelated.length >= 3 || freshWeak.length >= 3;
 }
 
 function logTokenDiagnostics(token) {

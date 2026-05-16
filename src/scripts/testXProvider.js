@@ -20,6 +20,12 @@ for (const post of posts) {
   console.log(`Lane: ${post.discoveryLane}`);
   console.log(`Viral shape: ${post.viralShape} (${post.viralShapeReason})`);
   console.log(`Momentum trend: ${post.momentumTrend}`);
+  console.log(`Launch worthiness: ${post.launchWorthinessScore}/100`);
+  console.log(`Archetype: ${post.marketArchetype}`);
+  console.log(`Narrative half-life: ${post.narrativeHalfLifeEstimate}`);
+  console.log(`Recommendation: ${post.launchRecommendation}`);
+  console.log(`Community formation: ${post.communityFormationLabel}`);
+  console.log(`Remixability: ${post.remixabilityLabel}`);
   console.log(`Views: ${post.totalViews.toLocaleString()}`);
   console.log(`Views/hour: ${post.viewsPerHour.toLocaleString()}`);
   console.log(`Likes: ${post.likeCount.toLocaleString()}`);

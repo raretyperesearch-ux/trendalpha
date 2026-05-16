@@ -42,6 +42,7 @@ for (const trend of trends.slice(0, MAX_PREVIEW)) {
     console.log(`Viral Shape: ${trend.viralShape} | Momentum: ${trend.momentumTrend} | Lane: ${trend.discoveryLane}`);
     console.log(`Attention Momentum: ${formatCount(trend.attentionMomentum)} | Shape: ${formatCount(trend.attentionShapeScore)}`);
     console.log(`Quote Explosion: ${trend.quoteExplosion ? "yes" : "no"} | Propagation Ratio: ${Number(trend.propagationRatio || 0).toFixed(3)}`);
+    console.log(`Launch Worthiness: ${trend.launchWorthinessScore}/100 | Archetype: ${trend.marketArchetype} | Recommendation: ${trend.launchRecommendation}`);
   } else {
     console.log(`Views/hr: ${formatCount(trendScore.metrics.viewsPerHour)} | Videos: ${formatCount(trend.videoCount)}`);
   }
