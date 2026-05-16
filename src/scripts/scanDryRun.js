@@ -9,6 +9,7 @@ import { scoreTrend } from "../scoring.js";
 import { scoreLaunchOpportunity } from "../launchScoring.js";
 import { generateLaunchBrief } from "../launchBrief.js";
 import { formatCount } from "../tokens.js";
+import { buildNarrativeClusters, getStrongNarrativeClusters } from "../narrativeClusters.js";
 
 const MAX_PREVIEW = parseInt(process.env.DRY_RUN_LIMIT || "10", 10);
 
@@ -21,6 +22,21 @@ if (trends.length === 0) {
 
 console.log(`OINK dry run: ${trends.length} attention objects fetched`);
 console.log(`Showing top ${Math.min(MAX_PREVIEW, trends.length)}\n`);
+
+const clusters = buildNarrativeClusters(trends);
+const strongClusters = getStrongNarrativeClusters(clusters);
+if (clusters.length > 0) {
+  console.log("Narrative clusters:");
+  for (const cluster of clusters.slice(0, 5)) {
+    console.log(
+      `- ${cluster.canonicalEntity}: ${cluster.lifecycleState} | ` +
+      `${cluster.relatedPosts.length} posts | ${cluster.relatedAccounts.length} accounts | ` +
+      `remix ${formatCount(cluster.remixCount)} | worthiness ${cluster.launchWorthinessScore}/100 | ` +
+      `${cluster.recommendation}`
+    );
+  }
+  console.log(`Strong cluster alerts that would send: ${strongClusters.length}\n`);
+}
 
 for (const trend of trends.slice(0, MAX_PREVIEW)) {
   const trendScore = scoreTrend(trend);

@@ -10,15 +10,20 @@ import { config } from "./config.js";
 import { fetchAllAttentionSources } from "./providers/index.js";
 import { applyXSnapshotPersistence } from "./providers/xProvider.js";
 import { applyLaunchWorthiness } from "./launchWorthiness.js";
+import { buildNarrativeClusters, getStrongNarrativeClusters } from "./narrativeClusters.js";
 import { scoreTrend } from "./scoring.js";
 import { scoreLaunchOpportunity } from "./launchScoring.js";
 import { generateLaunchBrief } from "./launchBrief.js";
 import { preparePumpFunLaunch } from "./launchers/pumpfun.js";
 import { findToken } from "./tokens.js";
-import { initBot, sendAlert, sendDigest, sendLaunchCandidate } from "./telegram.js";
+import { initBot, sendAlert, sendDigest, sendLaunchCandidate, sendNarrativeClusterAlert } from "./telegram.js";
 import {
   initDB,
   saveTrendSnapshot,
+  saveNarrativeClusterSnapshot,
+  getRecentNarrativeClusterSnapshots,
+  wasClusterAlertedRecently,
+  recordClusterAlert,
   getPreviousSnapshot,
   wasAlertedRecently,
   getLastAlertScore,
@@ -94,6 +99,7 @@ async function runScan() {
 
     let alertsSent = 0;
     let trendsProcessed = 0;
+    alertsSent += await processNarrativeClusters(trends, alertsSent);
 
     for (const trend of trends) {
       if (isNoise(trend)) continue;
@@ -201,6 +207,38 @@ async function runScan() {
   } catch (err) {
     console.error("❌ SCAN FAILED:", err);
   }
+}
+
+async function processNarrativeClusters(trends, alertsSent) {
+  const xTrends = trends.filter((trend) => trend.sourcePlatform === "x");
+  if (xTrends.length === 0) return 0;
+
+  const previousClusters = await getRecentNarrativeClusterSnapshots();
+  const clusters = buildNarrativeClusters(xTrends, previousClusters);
+  if (clusters.length === 0) return 0;
+
+  for (const cluster of clusters) {
+    await saveNarrativeClusterSnapshot(cluster);
+  }
+
+  let sentCount = 0;
+  const strongClusters = getStrongNarrativeClusters(clusters).slice(0, 2);
+  for (const cluster of strongClusters) {
+    if (alertsSent + sentCount >= MAX_ALERTS_PER_SCAN) break;
+    const alreadyAlerted = await wasClusterAlertedRecently(cluster.clusterId);
+    if (alreadyAlerted && cluster.lifecycleState !== "reigniting") {
+      console.log(`   ⏭️  Narrative cluster already alerted: ${cluster.canonicalEntity}`);
+      continue;
+    }
+    const sent = await sendNarrativeClusterAlert(cluster);
+    if (sent) {
+      sentCount++;
+      await recordClusterAlert(cluster);
+      await sleep(DELAY_BETWEEN_ALERTS_MS);
+    }
+  }
+
+  return sentCount;
 }
 
 // ----------------------------------------------------------

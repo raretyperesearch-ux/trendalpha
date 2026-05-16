@@ -82,8 +82,7 @@ export function initBot() {
  * Build the inline keyboard with refresh button
  */
 function buildRefreshKeyboard(hashtagName) {
-  // Telegram callback data max 64 bytes — keep it short
-  const callbackData = `ref:${hashtagName.slice(0, 58)}`;
+  const callbackData = safeCallbackData("ref", hashtagName);
   return new InlineKeyboard().text("🔄 Refresh", callbackData);
 }
 
@@ -189,16 +188,17 @@ export async function sendAlert({ trend, score, token, isNewEntry = false }) {
 
   const message = formatAlertMessage({ trend, score, token, isNewEntry });
 
-  // Extract hashtag name for refresh callback
+  // Refresh is TikTok-only. X titles can be long/non-ASCII, which makes
+  // callback payloads brittle and can trigger Telegram BUTTON_DATA_INVALID.
   const hashtagName = trend.name.replace("#", "");
-  const keyboard = buildRefreshKeyboard(hashtagName);
+  const keyboard = trend.sourcePlatform === "x" ? null : buildRefreshKeyboard(hashtagName);
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       await bot.api.sendMessage(config.telegram.channelId, message, {
         parse_mode: "HTML",
         disable_web_page_preview: true,
-        reply_markup: keyboard,
+        ...(keyboard ? { reply_markup: keyboard } : {}),
       });
       console.log(`📤 Alert sent: ${trend.name} (score: ${score.total})`);
       return true;
@@ -248,7 +248,7 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
   if (trend.sourcePlatform === "x") {
     msg += `𝕏 <b>VIRAL X POST</b>\n`;
     msg += `Source: <b>X</b>\n`;
-    msg += `Source Tweet: <a href="${escapeHtml(trend.sourceUrl)}">link</a>\n`;
+    msg += `Source Tweet: <a href="${escapeHtml(safeTelegramUrl(trend.sourceUrl, "https://x.com"))}">link</a>\n`;
     if (trend.author) msg += `by @${escapeHtml(trend.author)}\n`;
     msg += `Viral Shape: <b>${escapeHtml(formatLabel(trend.viralShape || "compounding"))}</b>\n`;
     msg += `Momentum: <b>${escapeHtml(formatLabel(trend.momentumTrend || "stable"))}</b>\n`;
@@ -476,6 +476,74 @@ export async function sendLaunchCandidate({ trend, trendScore, launchScore, laun
   return false;
 }
 
+export async function sendNarrativeClusterAlert(cluster) {
+  if (!bot) throw new Error("Bot not initialized — call initBot() first");
+
+  const message = formatNarrativeClusterAlert(cluster);
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await bot.api.sendMessage(config.telegram.channelId, message, {
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+      });
+      console.log(`📤 Narrative cluster sent: ${cluster.canonicalEntity} (${cluster.launchWorthinessScore})`);
+      return true;
+    } catch (err) {
+      if (err.message?.includes("429") || err.message?.includes("Too Many Requests")) {
+        const match = err.message.match(/retry after (\d+)/);
+        const waitSec = match ? parseInt(match[1]) + 1 : 5 * attempt;
+        console.log(`   ⏳ Rate limited, waiting ${waitSec}s (attempt ${attempt}/3)...`);
+        await sleep(waitSec * 1000);
+      } else {
+        console.error("❌ Failed to send narrative cluster:", err.message);
+        return false;
+      }
+    }
+  }
+
+  return false;
+}
+
+export function formatNarrativeClusterAlert(cluster) {
+  const topPosts = (cluster.relatedPosts || [])
+    .slice()
+    .sort((a, b) => Number(b.attentionMomentum || 0) - Number(a.attentionMomentum || 0))
+    .slice(0, 2);
+
+  let msg = `🐷 <b>OINK NARRATIVE CLUSTER</b>\n\n`;
+  msg += `Entity: <b>${escapeHtml(cluster.canonicalEntity)}</b>\n`;
+  msg += `State: <b>${escapeHtml(formatLabel(cluster.lifecycleState))}</b>\n`;
+  msg += `Momentum: <b>${escapeHtml(formatLabel(cluster.momentumTrend))}</b>\n`;
+  msg += `Archetype: <b>${escapeHtml(formatLabel(cluster.archetype))}</b>\n`;
+  msg += `Cross-Community Spread: <b>${escapeHtml(labelSpread(cluster.communitySpreadScore))}</b>\n\n`;
+
+  msg += `<code>`;
+  msg += `Posts Tracked: ${formatCount(cluster.relatedPosts?.length || 0)}\n`;
+  msg += `Accounts:      ${formatCount(cluster.relatedAccounts?.length || 0)}\n`;
+  msg += `Remix Count:   ${formatCount(cluster.remixCount)}\n`;
+  msg += `Momentum:      ${formatCount(cluster.totalMomentum)}\n`;
+  msg += `Persistence:   ${cluster.propagationPersistence}/100\n`;
+  msg += `Worthiness:    ${cluster.launchWorthinessScore}/100`;
+  msg += `</code>\n\n`;
+
+  msg += `Recommendation:\n<b>${escapeHtml(cluster.recommendation)}</b>\n\n`;
+  if (cluster.quoteExplosion) msg += `Quote Explosion Detected ⚡\n`;
+  if (cluster.copycatSwarm) msg += `Copycat Swarm Pollution Detected\n`;
+  if (cluster.viralShapeReason) msg += `${escapeHtml(cluster.viralShapeReason)}\n`;
+
+  if (topPosts.length > 0) {
+    msg += `\n<b>Top Sources:</b>\n`;
+    for (const post of topPosts) {
+      const url = safeTelegramUrl(post.sourceUrl, "https://x.com");
+      msg += `• <a href="${escapeHtml(url)}">${escapeHtml(post.name || post.id)}</a>`;
+      if (post.author) msg += ` by @${escapeHtml(post.author)}`;
+      msg += `\n`;
+    }
+  }
+
+  return msg;
+}
+
 function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBrief, preparedLaunch }) {
   const reasons = launchScore.reasons?.length
     ? launchScore.reasons.slice(0, 3)
@@ -490,7 +558,7 @@ function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBr
   msg += `Source: <b>${escapeHtml(getSourceLabel(trend))}</b>\n`;
   if (isX && trend.author) msg += `Author: @${escapeHtml(trend.author)}\n`;
   msg += `Trend: <b>${escapeHtml(trend.name)}</b>\n`;
-  msg += `${isX ? "Source Tweet" : "Source Post"}: <a href="${escapeHtml(launchBrief.sourceUrl)}">link</a>\n\n`;
+  msg += `${isX ? "Source Tweet" : "Source Post"}: <a href="${escapeHtml(safeTelegramUrl(launchBrief.sourceUrl, isX ? "https://x.com" : "https://www.tiktok.com"))}">link</a>\n\n`;
 
   if (isX) {
     if (trend.launchWorthinessScore !== undefined) {
@@ -601,11 +669,11 @@ export function formatLaunchCreatedAlert({ trend, launchBrief, launchedToken, fe
   let msg = `🐷 <b>OINK MARKET CREATED</b>\n\n`;
   msg += `Source: <b>${escapeHtml(getSourceLabel(trend))}</b>\n`;
   if (trend.sourcePlatform === "x") {
-    msg += `Original Viral Tweet: <a href="${escapeHtml(launchBrief.sourceUrl)}">link</a>\n\n`;
+    msg += `Original Viral Tweet: <a href="${escapeHtml(safeTelegramUrl(launchBrief.sourceUrl, "https://x.com"))}">link</a>\n\n`;
     msg += `<b>X Narrative Tag:</b>\n`;
     msg += `${escapeHtml(launchBrief.socialTag || "#OINKLaunch")}\n\n`;
   } else {
-    msg += `Original Source: <a href="${escapeHtml(launchBrief.sourceUrl)}">link</a>\n\n`;
+    msg += `Original Source: <a href="${escapeHtml(safeTelegramUrl(launchBrief.sourceUrl, "https://www.tiktok.com"))}">link</a>\n\n`;
   }
 
   msg += `<b>Market:</b>\n`;
@@ -664,4 +732,35 @@ function formatLabel(value) {
 
 function formatRatio(value) {
   return Number(value || 0).toFixed(3);
+}
+
+function safeCallbackData(prefix, value) {
+  const safePrefix = String(prefix || "cb").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 10) || "cb";
+  const cleaned = String(value || "")
+    .normalize("NFKD")
+    .replace(/[^\x00-\x7F]/g, "")
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const maxBytes = 64;
+  let data = `${safePrefix}:${cleaned || "refresh"}`;
+  while (Buffer.byteLength(data, "utf8") > maxBytes) {
+    data = data.slice(0, -1);
+  }
+  return data || `${safePrefix}:refresh`;
+}
+
+function safeTelegramUrl(url, fallback) {
+  try {
+    const parsed = new URL(String(url || fallback));
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") return parsed.toString();
+  } catch (_) {}
+  return fallback;
+}
+
+function labelSpread(score) {
+  const value = Number(score || 0);
+  if (value >= 220) return "HIGH";
+  if (value >= 120) return "MEDIUM";
+  return "LOW";
 }

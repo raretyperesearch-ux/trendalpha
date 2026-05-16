@@ -7,13 +7,25 @@ import { config } from "../config.js";
 import { fetchAllAttentionSources } from "../providers/index.js";
 import { applyXSnapshotPersistence } from "../providers/xProvider.js";
 import { applyLaunchWorthiness } from "../launchWorthiness.js";
+import { buildNarrativeClusters, getStrongNarrativeClusters } from "../narrativeClusters.js";
 import { scoreTrend } from "../scoring.js";
 import { scoreLaunchOpportunity } from "../launchScoring.js";
 import { generateLaunchBrief } from "../launchBrief.js";
 import { preparePumpFunLaunch } from "../launchers/pumpfun.js";
 import { findToken } from "../tokens.js";
-import { initBot, sendAlert, sendLaunchCandidate } from "../telegram.js";
-import { initDB, saveTrendSnapshot, getPreviousSnapshot, wasAlertedRecently, getLastAlertScore, recordAlert } from "../db.js";
+import { initBot, sendAlert, sendLaunchCandidate, sendNarrativeClusterAlert } from "../telegram.js";
+import {
+  initDB,
+  saveTrendSnapshot,
+  saveNarrativeClusterSnapshot,
+  getRecentNarrativeClusterSnapshots,
+  wasClusterAlertedRecently,
+  recordClusterAlert,
+  getPreviousSnapshot,
+  wasAlertedRecently,
+  getLastAlertScore,
+  recordAlert,
+} from "../db.js";
 
 // ----------------------------------------------------------
 // NOISE FILTER — skip trends that will never get tokenized
@@ -86,6 +98,7 @@ async function main() {
   const trends = await fetchAllAttentionSources();
 
   let alertsSent = 0;
+  alertsSent += await processNarrativeClusters(trends, alertsSent);
 
   for (const trend of trends) {
     // Noise filter
@@ -191,6 +204,38 @@ async function main() {
 
   console.log(`\n✅ Scan complete — ${alertsSent} alerts sent`);
   process.exit(0);
+}
+
+async function processNarrativeClusters(trends, alertsSent) {
+  const xTrends = trends.filter((trend) => trend.sourcePlatform === "x");
+  if (xTrends.length === 0) return 0;
+
+  const previousClusters = await getRecentNarrativeClusterSnapshots();
+  const clusters = buildNarrativeClusters(xTrends, previousClusters);
+  if (clusters.length === 0) return 0;
+
+  for (const cluster of clusters) {
+    await saveNarrativeClusterSnapshot(cluster);
+  }
+
+  let sentCount = 0;
+  const strongClusters = getStrongNarrativeClusters(clusters).slice(0, 2);
+  for (const cluster of strongClusters) {
+    if (alertsSent + sentCount >= MAX_ALERTS_PER_SCAN) break;
+    const alreadyAlerted = await wasClusterAlertedRecently(cluster.clusterId);
+    if (alreadyAlerted && cluster.lifecycleState !== "reigniting") {
+      console.log(`   ⏭️  Narrative cluster already alerted: ${cluster.canonicalEntity}`);
+      continue;
+    }
+    const sent = await sendNarrativeClusterAlert(cluster);
+    if (sent) {
+      sentCount++;
+      await recordClusterAlert(cluster);
+      await sleep(DELAY_BETWEEN_ALERTS_MS);
+    }
+  }
+
+  return sentCount;
 }
 
 function sleep(ms) {

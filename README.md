@@ -11,7 +11,7 @@
         OINK
 ```
 
-**OINK is an autonomous attention-layer engine that evaluates whether internet attention can sustain market identity.**
+**OINK is an autonomous attention-layer engine that models narrative formation and propagation across the internet.**
 
 OINK was formerly TrendAlpha. TrendAlpha proved the first idea: internet trends can become market narratives before most people notice them. OINK takes the next step: it watches viral attention across social platforms, scores whether that attention could become a market, generates launch briefs, and prepares candidates for human review.
 
@@ -45,6 +45,7 @@ It cares about:
 - Cross-community spread
 - Unusually high engagement relative to account size
 - Early marketability emerging from remix structure
+- Narrative clusters forming across posts, accounts, phrases, and media motifs
 - Whether a related token already exists
 - Risk flags around brands, celebrities, tragedy, or already-saturated crypto language
 
@@ -72,6 +73,25 @@ Market formation outputs include:
 - **Launch recommendation**: `DO_NOT_LAUNCH`, `WATCH`, `EARLY_OPPORTUNITY`, `HIGH_CONVICTION`, or `BREAKOUT_FORMING`.
 
 Copycat swarms lower launch worthiness because polluted narratives are harder to own. Unclaimed attention with strong propagation and no canonical market receives a boost.
+
+## Narrative Clusters
+
+OINK no longer treats every viral post as an isolated signal. It builds evolving narrative clusters when related attention events converge around the same entity, phrase, creator, quote chain, visual motif, or recurring framing.
+
+Cluster intelligence tracks:
+
+- Canonical entity and aliases
+- Related posts, accounts, and phrases
+- Total attention and attention momentum
+- Propagation persistence
+- Community spread
+- Remix count
+- Market status
+- Copycat swarm pollution
+
+Cluster lifecycle states are `emerging`, `accelerating`, `compounding`, `peaking`, `saturated`, `decaying`, `dormant`, and `reigniting`.
+
+A cluster is stronger when multiple posts reinforce the same narrative, multiple accounts carry it into different communities, remix count expands, and momentum persists across scans. If a dormant narrative suddenly accelerates again, OINK marks it as `reigniting` and boosts review priority.
 
 ## Launch Flow
 
@@ -105,6 +125,7 @@ OINK turns attention into structured outputs:
 OINK sends:
 
 - Standard attention alerts
+- Narrative cluster alerts
 - Launch candidate cards
 - Periodic trend digests
 
@@ -137,6 +158,8 @@ For X-sourced launch candidates, OINK generates a hashtag that ties the launch b
 ### Telegram Alerts
 
 Telegram is the first OINK terminal. X candidates, TikTok trends, launch candidates, and future market-created alerts are formatted for Telegram-first consumption.
+
+Narrative cluster cards show entity, lifecycle state, momentum, cross-community spread, posts tracked, accounts involved, remix count, launch worthiness, and recommendation.
 
 ## Dashboard
 
