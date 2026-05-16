@@ -3,10 +3,11 @@ import { config } from "../config.js";
 const X_RECENT_SEARCH_URL = "https://api.twitter.com/2/tweets/search/recent";
 
 const DEFAULT_SEARCH_QUERIES = [
-  "has:media lang:en -is:retweet -is:reply",
-  "(this is insane OR i can't believe OR bro really OR no way OR what is happening) lang:en -is:retweet",
-  "(dog OR cat OR animal OR robot OR ai OR food OR game OR streamer) has:media lang:en -is:retweet",
-  "(caught on camera OR went viral OR funniest OR wildest) lang:en -is:retweet",
+  "(no way OR insane OR wild OR crazy OR unbelievable) has:media lang:en -is:retweet -is:reply",
+  "(dog OR cat OR animal OR robot OR ai OR food OR game OR streamer) has:media lang:en -is:retweet -is:reply",
+  "(caught on camera OR went viral OR funniest OR wildest OR this is insane) lang:en -is:retweet -is:reply",
+  "(bro OR no way OR i'm crying OR this killed me OR what is happening) lang:en -is:retweet -is:reply",
+  "(airport OR delivery robot OR mascot OR restaurant OR school OR sports OR concert OR livestream) has:media lang:en -is:retweet -is:reply",
 ];
 
 export const CRYPTO_SATURATED_TERMS = [
@@ -50,11 +51,19 @@ export async function fetchXAttention() {
   const queries = config.x.searchQueries.length > 0
     ? config.x.searchQueries
     : DEFAULT_SEARCH_QUERIES;
+  const validQueries = queries
+    .map(sanitizeXQuery)
+    .filter(Boolean);
+
+  if (validQueries.length === 0) {
+    console.log("   ⚠️  No valid X search queries configured");
+    return [];
+  }
 
   const seen = new Set();
   const posts = [];
 
-  for (const query of queries) {
+  for (const query of validQueries) {
     let response;
     try {
       response = await searchRecent(query);
@@ -75,6 +84,33 @@ export async function fetchXAttention() {
   }
 
   return posts.sort((a, b) => (b.attentionShapeScore || 0) - (a.attentionShapeScore || 0));
+}
+
+export function sanitizeXQuery(query) {
+  const trimmed = String(query || "").trim();
+  if (!trimmed) return null;
+
+  if (!hasSearchTerm(trimmed)) {
+    console.log(`   ⚠️  Skipping invalid X search query without a real search term: ${trimmed}`);
+    return null;
+  }
+
+  return trimmed;
+}
+
+function hasSearchTerm(query) {
+  const tokens = query
+    .replace(/[()]/g, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  return tokens.some((token) => {
+    const normalized = token.toLowerCase().replace(/^[-+]+/, "").replace(/^"|"$/g, "");
+    if (!normalized || normalized === "or" || normalized === "and") return false;
+    if (normalized.includes(":")) return false;
+    return /[a-z0-9]/i.test(normalized);
+  });
 }
 
 async function searchRecent(query) {

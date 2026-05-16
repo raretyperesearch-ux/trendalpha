@@ -87,6 +87,14 @@ Launch candidate cards include the source, score, conviction, reasons, suggested
 
 OINK’s X scanner prioritizes views and shares because reposts and quote tweets show distribution and meme remix potential. Views show reach, reposts show spread, quotes show remix pressure, and velocity shows whether the post is moving now.
 
+Custom `X_SEARCH_QUERIES` must include at least one real search term. X rejects queries made only from operators such as `has:media lang:en -is:retweet`. Separate multiple queries with `|`.
+
+Example:
+
+```bash
+X_SEARCH_QUERIES=(no way OR insane OR wild) has:media lang:en -is:retweet -is:reply|(dog OR cat OR robot) has:media lang:en -is:retweet -is:reply
+```
+
 ### X Narrative Tags
 
 For X-sourced launch candidates, OINK generates a hashtag that ties the launch back to the original viral tweet. The tag gives Telegram users a clean phrase to copy, share, and point back at the attention source.
