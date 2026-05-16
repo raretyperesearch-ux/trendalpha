@@ -24,6 +24,10 @@ for (const post of posts) {
   console.log(`Quotes: ${post.quoteCount.toLocaleString()}`);
   console.log(`Shares: ${post.shareCount.toLocaleString()}`);
   console.log(`Shares/hour: ${post.shareVelocity.toLocaleString(undefined, { maximumFractionDigits: 1 })}`);
+  console.log(`Reposts/hour: ${post.repostVelocity.toLocaleString(undefined, { maximumFractionDigits: 1 })}`);
+  console.log(`Quotes/hour: ${post.quoteVelocity.toLocaleString(undefined, { maximumFractionDigits: 1 })}`);
+  console.log(`Engagement acceleration: ${post.engagementAcceleration.toLocaleString()}`);
+  console.log(`Cross-community spread: ${post.crossCommunitySpreadScore.toLocaleString(undefined, { maximumFractionDigits: 1 })}`);
   console.log(`Share rate: ${(post.shareRate * 100).toFixed(3)}%`);
   console.log(`Quote rate: ${(post.quoteRate * 100).toFixed(1)}%`);
   console.log(`Attention shape: ${post.attentionShapeScore.toLocaleString()}`);

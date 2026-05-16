@@ -87,7 +87,7 @@ Launch candidate cards include the source, score, conviction, reasons, suggested
 
 OINK’s X scanner prioritizes views and shares because reposts and quote tweets show distribution and meme remix potential. Views show reach, reposts show spread, quotes show remix pressure, and velocity shows whether the post is moving now.
 
-Custom `X_SEARCH_QUERIES` must include at least one real search term. X rejects queries made only from operators such as `has:media lang:en -is:retweet`. Separate multiple queries with `|`.
+Custom `X_SEARCH_QUERIES` must include at least one real search term. X rejects queries made only from operators such as `has:media lang:en -is:retweet`. Separate multiple queries with `|`. Keep discovery broad; OINK ranks X posts by attention shape rather than crypto or meme keywords.
 
 Example:
 
@@ -95,7 +95,7 @@ Example:
 X_SEARCH_QUERIES=(no way OR insane OR wild) has:media lang:en -is:retweet -is:reply|(dog OR cat OR robot) has:media lang:en -is:retweet -is:reply
 ```
 
-When X impressions are unavailable, OINK still filters candidates with engagement velocity and attention shape score. Tune `X_MIN_ENGAGEMENT_PER_HOUR` and `X_MIN_ATTENTION_SHAPE_SCORE` if Railway logs show good posts being rejected below thresholds.
+When X impressions are unavailable, OINK still filters candidates with engagement velocity and attention shape score. Tune `X_MIN_ENGAGEMENT_PER_HOUR`, `X_MIN_ENGAGEMENT_ACCELERATION`, quote/repost velocity thresholds, and `X_MIN_ATTENTION_SHAPE_SCORE` if Railway logs show good posts being rejected below thresholds. Strong candidates can stay eligible up to `X_MAX_STRONG_POST_AGE_HOURS`.
 
 If recent search returns only low-metric posts, OINK can keep a tiny scout sample with `X_MIN_SCOUT_SHAPE_SCORE` and `X_MAX_SCOUT_POSTS_PER_QUERY`. Scout posts still go through the normal scoring and alert thresholds, so they help visibility without bypassing Telegram quality controls.
 

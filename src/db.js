@@ -30,22 +30,50 @@ export function initDB() {
  */
 export async function saveTrendSnapshot(trend, score) {
   try {
-    const { error } = await supabase.from("trend_snapshots").insert({
+    const snapshot = {
       trend_id: trend.id,
       trend_name: trend.name,
-      trend_type: trend.type,
-      total_views: trend.totalViews,
-      video_count: trend.videoCount,
+      trend_type: getSnapshotTrendType(trend),
+      total_views: Number(trend.totalViews || 0),
+      video_count: Number(trend.videoCount || 0),
       views_per_hour: score.metrics.viewsPerHour,
       score: score.total,
       score_breakdown: score.breakdown,
       scanned_at: new Date().toISOString(),
-    });
+    };
+
+    const { error } = await supabase.from("trend_snapshots").insert(snapshot);
 
     if (error) throw error;
   } catch (err) {
     console.error("❌ Failed to save snapshot:", err.message);
+    await saveMinimalTrendSnapshot(trend, score);
   }
+}
+
+async function saveMinimalTrendSnapshot(trend, score) {
+  try {
+    const { error } = await supabase.from("trend_snapshots").insert({
+      trend_id: String(trend.id || "").slice(0, 128),
+      trend_name: String(trend.name || "Unknown").slice(0, 255),
+      trend_type: getSnapshotTrendType(trend),
+      total_views: Number(trend.totalViews || 0),
+      video_count: Number(trend.videoCount || 0),
+      views_per_hour: Number(score.metrics.viewsPerHour || 0),
+      score: Number(score.total || 0),
+      scanned_at: new Date().toISOString(),
+    });
+
+    if (error) throw error;
+    console.log("   ✅ Saved minimal trend snapshot fallback");
+  } catch (err) {
+    console.error("❌ Minimal snapshot fallback failed:", err.message);
+  }
+}
+
+function getSnapshotTrendType(trend) {
+  if (trend.type === "song") return "song";
+  return "hashtag";
 }
 
 /**

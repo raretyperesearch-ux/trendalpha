@@ -2,14 +2,14 @@ import { config } from "../config.js";
 
 const X_RECENT_SEARCH_URL = "https://api.twitter.com/2/tweets/search/recent";
 
+// X rejects pure operator streams like "has:media lang:en"; these broad
+// neutral terms keep discovery attention-first while satisfying query syntax.
 const DEFAULT_SEARCH_QUERIES = [
-  "(no way OR insane OR wild OR unbelievable OR hilarious) has:media lang:en -is:retweet -is:reply",
-  "(dog OR cat OR animal OR robot OR ai OR food OR game OR streamer) has:media lang:en -is:retweet -is:reply",
-  '("caught on camera" OR "went viral" OR funniest OR wildest OR "this is insane") lang:en -is:retweet -is:reply',
-  '(bro OR "no way" OR "im crying" OR "this killed me" OR "what is happening") lang:en -is:retweet -is:reply',
-  "(airport OR robot OR mascot OR restaurant OR school OR sports OR concert OR livestream) has:media lang:en -is:retweet -is:reply",
-  "(video OR photo OR clip OR moment OR scene) has:media lang:en -is:retweet -is:reply",
-  "(funny OR hilarious OR wild OR unreal OR bizarre) lang:en -is:retweet -is:reply",
+  "(the OR this OR that OR what OR how) has:media lang:en -is:retweet -is:reply",
+  "(video OR clip OR photo OR picture OR moment) has:media lang:en -is:retweet -is:reply",
+  "(people OR someone OR guy OR girl OR kid) has:media lang:en -is:retweet -is:reply",
+  "(today OR now OR here OR there OR when) has:media lang:en -is:retweet -is:reply",
+  "(watch OR look OR see OR made OR found) has:media lang:en -is:retweet -is:reply",
 ];
 
 export const CRYPTO_SATURATED_TERMS = [
@@ -161,28 +161,18 @@ function hasSearchTerm(query) {
 async function searchRecent(query) {
   const attempts = [
     {
-      label: "relevant public fields with media",
-      tweetFields: SAFE_TWEET_FIELDS,
-      expansions: "author_id,attachments.media_keys",
-      userFields: "username,name,public_metrics",
-      mediaFields: "type,url,preview_image_url",
-      sortOrder: "relevancy",
-    },
-    {
-      label: "relevant public fields without media",
-      tweetFields: SAFE_TWEET_FIELDS,
-      expansions: "author_id",
-      userFields: "username,name,public_metrics",
-      mediaFields: null,
-      sortOrder: "relevancy",
-    },
-    {
       label: "public fields with media",
       tweetFields: SAFE_TWEET_FIELDS,
       expansions: "author_id,attachments.media_keys",
       userFields: "username,name,public_metrics",
       mediaFields: "type,url,preview_image_url",
-      sortOrder: null,
+    },
+    {
+      label: "public fields without media",
+      tweetFields: SAFE_TWEET_FIELDS,
+      expansions: "author_id",
+      userFields: "username,name,public_metrics",
+      mediaFields: null,
     },
     {
       label: "minimal tweet fields",
@@ -190,7 +180,6 @@ async function searchRecent(query) {
       expansions: null,
       userFields: null,
       mediaFields: null,
-      sortOrder: null,
     },
   ];
 
@@ -216,7 +205,6 @@ async function requestRecentSearch(query, attempt) {
   if (attempt.expansions) params.set("expansions", attempt.expansions);
   if (attempt.userFields) params.set("user.fields", attempt.userFields);
   if (attempt.mediaFields) params.set("media.fields", attempt.mediaFields);
-  if (attempt.sortOrder) params.set("sort_order", attempt.sortOrder);
 
   const res = await fetch(`${X_RECENT_SEARCH_URL}?${params.toString()}`, {
     headers: {
@@ -264,19 +252,42 @@ function normalizeTweet(tweet, usersById, mediaByKey) {
   const shareVelocity = shareCount / hoursActive;
   const repostVelocity = repostCount / hoursActive;
   const quoteVelocity = quoteCount / hoursActive;
+  const engagementAcceleration = getEngagementAcceleration({
+    engagementPerHour,
+    shareVelocity,
+    quoteVelocity,
+    repostVelocity,
+    hoursActive,
+  });
   const shareRate = shareCount / Math.max(1, totalViews);
   const quoteRate = quoteCount / Math.max(1, shareCount);
   const likeRate = likeCount / Math.max(1, totalViews);
   const replyRate = replyCount / Math.max(1, totalViews);
+  const crossCommunitySpreadScore = getCrossCommunitySpreadScore({
+    shareRate,
+    quoteRate,
+    quoteVelocity,
+    repostVelocity,
+  });
   const cryptoSaturatedLanguage = riskFlags.includes("crypto_saturated_language");
+  const keywordBias = getKeywordBias(text);
+  const isRising =
+    viewsPerHour >= config.x.minViewsPerHour ||
+    shareVelocity >= config.x.minShareVelocity ||
+    quoteVelocity >= config.x.minQuoteVelocity ||
+    repostVelocity >= config.x.minRepostVelocity ||
+    engagementAcceleration >= config.x.minEngagementAcceleration;
   const attentionShapeScore = getAttentionShapeScore({
     viewsPerHour,
     shareVelocity,
     quoteVelocity,
     repostVelocity,
     engagementPerHour,
+    engagementAcceleration,
+    crossCommunitySpreadScore,
     hasMedia: media.length > 0,
     cryptoSaturatedLanguage,
+    keywordBias,
   });
 
   return {
@@ -300,6 +311,8 @@ function normalizeTweet(tweet, usersById, mediaByKey) {
     shareVelocity,
     repostVelocity,
     quoteVelocity,
+    engagementAcceleration,
+    crossCommunitySpreadScore,
     shareRate,
     quoteRate,
     likeRate,
@@ -311,8 +324,8 @@ function normalizeTweet(tweet, usersById, mediaByKey) {
     rank: null,
     rankChange: 0,
     rankChangeType: null,
-    acceleration: viewsPerHour >= config.x.minViews / 4 || engagementPerHour >= config.x.minLikes / 4 ? 1.2 : 1,
-    trendDirection: viewsPerHour >= config.x.minViews / 4 || engagementPerHour >= config.x.minLikes / 4 ? "rising" : "stable",
+    acceleration: isRising ? 1.2 : 1,
+    trendDirection: isRising ? "rising" : "stable",
     discoveredAt: new Date().toISOString(),
     earliestVideo: Math.floor(new Date(tweet.created_at).getTime() / 1000),
     riskFlags,
@@ -330,18 +343,32 @@ function getFilterRejectionReason(post, tweet) {
   if (isRetweetOrReply(tweet.text)) return "retweet_or_reply";
 
   const ageHours = getHoursSince(tweet.created_at);
-  if (ageHours > config.x.maxPostAgeHours) return `too_old_${Math.round(ageHours)}h`;
-
-  const meetsAttentionThreshold =
-    post.totalViews >= config.x.minViews ||
-    post.likeCount >= config.x.minLikes ||
-    post.shareCount >= config.x.minShares ||
+  const meetsVelocityThreshold =
     post.shareVelocity >= config.x.minShareVelocity ||
+    post.quoteVelocity >= config.x.minQuoteVelocity ||
+    post.repostVelocity >= config.x.minRepostVelocity ||
     post.viewsPerHour >= config.x.minViewsPerHour ||
     post.engagementPerHour >= config.x.minEngagementPerHour ||
+    post.engagementAcceleration >= config.x.minEngagementAcceleration ||
     post.attentionShapeScore >= config.x.minAttentionShapeScore;
 
-  return meetsAttentionThreshold ? null : "below_attention_thresholds";
+  if (ageHours <= config.x.maxPostAgeHours) {
+    return meetsVelocityThreshold ? null : "below_attention_thresholds";
+  }
+
+  const stillMoving =
+    post.viewsPerHour >= config.x.minViewsPerHour ||
+    post.shareVelocity >= config.x.minShareVelocity * 1.5 ||
+    post.quoteVelocity >= config.x.minQuoteVelocity * 1.5 ||
+    post.repostVelocity >= config.x.minRepostVelocity * 1.5 ||
+    post.engagementAcceleration >= config.x.minEngagementAcceleration * 1.5 ||
+    post.attentionShapeScore >= config.x.minAttentionShapeScore * 1.5;
+
+  if (ageHours <= config.x.maxStrongPostAgeHours) {
+    return stillMoving ? null : "below_attention_thresholds_after_fresh_window";
+  }
+
+  return `too_old_${Math.round(ageHours)}h`;
 }
 
 function getAttentionShapeScore({
@@ -350,20 +377,52 @@ function getAttentionShapeScore({
   quoteVelocity,
   repostVelocity,
   engagementPerHour,
+  engagementAcceleration,
+  crossCommunitySpreadScore,
   hasMedia,
   cryptoSaturatedLanguage,
+  keywordBias,
 }) {
   let score =
     viewsPerHour +
-    shareVelocity * 250 +
-    quoteVelocity * 400 +
-    repostVelocity * 200 +
-    engagementPerHour * 25;
+    shareVelocity * 300 +
+    quoteVelocity * 650 +
+    repostVelocity * 275 +
+    engagementPerHour * 20 +
+    engagementAcceleration * 35 +
+    crossCommunitySpreadScore * 1000;
 
   if (hasMedia) score *= 1.15;
+  score *= keywordBias;
   if (cryptoSaturatedLanguage) score *= 0.7;
 
   return Math.round(score);
+}
+
+function getEngagementAcceleration({
+  engagementPerHour,
+  shareVelocity,
+  quoteVelocity,
+  repostVelocity,
+  hoursActive,
+}) {
+  const freshnessBoost = hoursActive <= 3 ? 1.5 : hoursActive <= 6 ? 1.25 : hoursActive <= 12 ? 1 : 0.75;
+  return Math.round((engagementPerHour + shareVelocity * 5 + quoteVelocity * 8 + repostVelocity * 4) * freshnessBoost);
+}
+
+function getCrossCommunitySpreadScore({
+  shareRate,
+  quoteRate,
+  quoteVelocity,
+  repostVelocity,
+}) {
+  return Math.round((shareRate * 100 + quoteRate * 25 + quoteVelocity * 2 + repostVelocity) * 10) / 10;
+}
+
+function getKeywordBias(text = "") {
+  const lower = text.toLowerCase();
+  const slightBoostTerms = ["video", "clip", "photo", "picture", "watch", "look"];
+  return slightBoostTerms.some((term) => lower.includes(term)) ? 1.03 : 1;
 }
 
 function buildTitle(text, hasMedia) {
