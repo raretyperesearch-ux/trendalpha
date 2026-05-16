@@ -259,10 +259,16 @@ async function main() {
   // Schedule digest every 3 hours (at :30 to offset from scans)
   cron.schedule("30 */3 * * *", () => { runDigest(); });
   console.log(`📊 Digest: every 3 hours\n`);
+
+  await keepAlive();
 }
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function keepAlive() {
+  return new Promise(() => {});
 }
 
 function formatParticipation(trend) {
