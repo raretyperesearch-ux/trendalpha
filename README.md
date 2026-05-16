@@ -97,6 +97,8 @@ X_SEARCH_QUERIES=(no way OR insane OR wild) has:media lang:en -is:retweet -is:re
 
 When X impressions are unavailable, OINK still filters candidates with engagement velocity and attention shape score. Tune `X_MIN_ENGAGEMENT_PER_HOUR` and `X_MIN_ATTENTION_SHAPE_SCORE` if Railway logs show good posts being rejected below thresholds.
 
+If recent search returns only low-metric posts, OINK can keep a tiny scout sample with `X_MIN_SCOUT_SHAPE_SCORE` and `X_MAX_SCOUT_POSTS_PER_QUERY`. Scout posts still go through the normal scoring and alert thresholds, so they help visibility without bypassing Telegram quality controls.
+
 ### X Narrative Tags
 
 For X-sourced launch candidates, OINK generates a hashtag that ties the launch back to the original viral tweet. The tag gives Telegram users a clean phrase to copy, share, and point back at the attention source.

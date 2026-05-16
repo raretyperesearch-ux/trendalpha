@@ -55,6 +55,8 @@ export const config = {
     minViewsPerHour: optionalInt("X_MIN_VIEWS_PER_HOUR", "50000"),
     minEngagementPerHour: optionalInt("X_MIN_ENGAGEMENT_PER_HOUR", "250"),
     minAttentionShapeScore: optionalInt("X_MIN_ATTENTION_SHAPE_SCORE", "25000"),
+    minScoutShapeScore: optionalInt("X_MIN_SCOUT_SHAPE_SCORE", "500"),
+    maxScoutPostsPerQuery: optionalInt("X_MAX_SCOUT_POSTS_PER_QUERY", "1"),
     maxPostAgeHours: optionalInt("X_MAX_POST_AGE_HOURS", "12"),
     resultsPerQuery: optionalInt("X_RESULTS_PER_QUERY", "25"),
   },

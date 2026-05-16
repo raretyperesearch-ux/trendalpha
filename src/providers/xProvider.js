@@ -79,6 +79,7 @@ export async function fetchXAttention() {
     const rawTweets = response.data || [];
     let acceptedCount = 0;
     const rejected = [];
+    const scouts = [];
 
     for (const tweet of rawTweets) {
       if (seen.has(tweet.id)) continue;
@@ -94,7 +95,27 @@ export async function fetchXAttention() {
       }
     }
 
+    if (acceptedCount === 0 && config.x.maxScoutPostsPerQuery > 0) {
+      const eligibleScouts = rejected
+        .filter(({ post, reason }) => reason === "below_attention_thresholds" && post.attentionShapeScore >= config.x.minScoutShapeScore)
+        .sort((a, b) => (b.post.attentionShapeScore || 0) - (a.post.attentionShapeScore || 0))
+        .slice(0, config.x.maxScoutPostsPerQuery);
+
+      for (const { post } of eligibleScouts) {
+        post.isScoutCandidate = true;
+        post.riskFlags = [...new Set([...(post.riskFlags || []), "x_scout_candidate"])];
+        posts.push(post);
+        scouts.push(post);
+      }
+    }
+
     console.log(`   🔎 X query accepted ${acceptedCount}/${rawTweets.length} posts: ${query}`);
+    if (scouts.length > 0) {
+      console.log(
+        `      Scout fallback kept ${scouts.length} post(s); ` +
+        `top shape ${scouts[0].attentionShapeScore.toLocaleString()}`
+      );
+    }
     if (acceptedCount === 0 && rejected.length > 0) {
       const strongest = rejected.sort((a, b) => (b.post.attentionShapeScore || 0) - (a.post.attentionShapeScore || 0))[0];
       console.log(
@@ -140,18 +161,28 @@ function hasSearchTerm(query) {
 async function searchRecent(query) {
   const attempts = [
     {
-      label: "full public fields with media",
+      label: "relevant public fields with media",
       tweetFields: SAFE_TWEET_FIELDS,
       expansions: "author_id,attachments.media_keys",
       userFields: "username,name,public_metrics",
       mediaFields: "type,url,preview_image_url",
+      sortOrder: "relevancy",
     },
     {
-      label: "public fields without media",
+      label: "relevant public fields without media",
       tweetFields: SAFE_TWEET_FIELDS,
       expansions: "author_id",
       userFields: "username,name,public_metrics",
       mediaFields: null,
+      sortOrder: "relevancy",
+    },
+    {
+      label: "public fields with media",
+      tweetFields: SAFE_TWEET_FIELDS,
+      expansions: "author_id,attachments.media_keys",
+      userFields: "username,name,public_metrics",
+      mediaFields: "type,url,preview_image_url",
+      sortOrder: null,
     },
     {
       label: "minimal tweet fields",
@@ -159,6 +190,7 @@ async function searchRecent(query) {
       expansions: null,
       userFields: null,
       mediaFields: null,
+      sortOrder: null,
     },
   ];
 
@@ -184,6 +216,7 @@ async function requestRecentSearch(query, attempt) {
   if (attempt.expansions) params.set("expansions", attempt.expansions);
   if (attempt.userFields) params.set("user.fields", attempt.userFields);
   if (attempt.mediaFields) params.set("media.fields", attempt.mediaFields);
+  if (attempt.sortOrder) params.set("sort_order", attempt.sortOrder);
 
   const res = await fetch(`${X_RECENT_SEARCH_URL}?${params.toString()}`, {
     headers: {
