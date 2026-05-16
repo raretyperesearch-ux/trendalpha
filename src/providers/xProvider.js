@@ -26,17 +26,6 @@ export const CRYPTO_SATURATED_TERMS = [
   "launch token",
 ];
 
-const FULL_TWEET_FIELDS = [
-  "created_at",
-  "public_metrics",
-  "non_public_metrics",
-  "organic_metrics",
-  "attachments",
-  "entities",
-  "lang",
-  "possibly_sensitive",
-];
-
 const SAFE_TWEET_FIELDS = [
   "created_at",
   "public_metrics",
@@ -44,6 +33,12 @@ const SAFE_TWEET_FIELDS = [
   "entities",
   "lang",
   "possibly_sensitive",
+];
+
+const MINIMAL_TWEET_FIELDS = [
+  "created_at",
+  "public_metrics",
+  "lang",
 ];
 
 export async function fetchXAttention() {
@@ -60,10 +55,16 @@ export async function fetchXAttention() {
   const posts = [];
 
   for (const query of queries) {
-    const response = await searchRecent(query);
+    let response;
+    try {
+      response = await searchRecent(query);
+    } catch (err) {
+      console.error(`❌ X provider failed for query "${query}":`, err.message);
+      continue;
+    }
+
     const usersById = indexById(response.includes?.users || []);
     const mediaByKey = indexByKey(response.includes?.media || []);
-
     for (const tweet of response.data || []) {
       if (seen.has(tweet.id)) continue;
       seen.add(tweet.id);
@@ -77,24 +78,52 @@ export async function fetchXAttention() {
 }
 
 async function searchRecent(query) {
-  try {
-    return await requestRecentSearch(query, FULL_TWEET_FIELDS);
-  } catch (err) {
-    if (!err.retryWithoutPrivateMetrics) throw err;
-    console.log("   ⚠️  X metrics access limited; retrying with public fields only");
-    return requestRecentSearch(query, SAFE_TWEET_FIELDS);
+  const attempts = [
+    {
+      label: "full public fields with media",
+      tweetFields: SAFE_TWEET_FIELDS,
+      expansions: "author_id,attachments.media_keys",
+      userFields: "username,name,public_metrics",
+      mediaFields: "type,url,preview_image_url",
+    },
+    {
+      label: "public fields without media",
+      tweetFields: SAFE_TWEET_FIELDS,
+      expansions: "author_id",
+      userFields: "username,name,public_metrics",
+      mediaFields: null,
+    },
+    {
+      label: "minimal tweet fields",
+      tweetFields: MINIMAL_TWEET_FIELDS,
+      expansions: null,
+      userFields: null,
+      mediaFields: null,
+    },
+  ];
+
+  let lastError = null;
+  for (const attempt of attempts) {
+    try {
+      return await requestRecentSearch(query, attempt);
+    } catch (err) {
+      lastError = err;
+      console.log(`   ⚠️  X request failed (${attempt.label}); trying fallback if available`);
+    }
   }
+
+  throw lastError || new Error("X recent search failed");
 }
 
-async function requestRecentSearch(query, tweetFields) {
+async function requestRecentSearch(query, attempt) {
   const params = new URLSearchParams({
     query,
     max_results: String(clamp(config.x.resultsPerQuery, 10, 100)),
-    "tweet.fields": tweetFields.join(","),
-    expansions: "author_id,attachments.media_keys",
-    "user.fields": "username,name,verified,public_metrics",
-    "media.fields": "type,url,preview_image_url,public_metrics",
+    "tweet.fields": attempt.tweetFields.join(","),
   });
+  if (attempt.expansions) params.set("expansions", attempt.expansions);
+  if (attempt.userFields) params.set("user.fields", attempt.userFields);
+  if (attempt.mediaFields) params.set("media.fields", attempt.mediaFields);
 
   const res = await fetch(`${X_RECENT_SEARCH_URL}?${params.toString()}`, {
     headers: {
@@ -106,7 +135,7 @@ async function requestRecentSearch(query, tweetFields) {
   if (!res.ok) {
     const message = body?.detail || body?.title || body?.errors?.[0]?.message || `X API returned ${res.status}`;
     const err = new Error(message);
-    err.retryWithoutPrivateMetrics = [400, 403].includes(res.status) && tweetFields.includes("non_public_metrics");
+    console.error("   X API error body:", safeStringify(body));
     throw err;
   }
 
@@ -115,8 +144,6 @@ async function requestRecentSearch(query, tweetFields) {
 
 function normalizeTweet(tweet, usersById, mediaByKey) {
   const publicMetrics = tweet.public_metrics || {};
-  const privateMetrics = tweet.non_public_metrics || {};
-  const organicMetrics = tweet.organic_metrics || {};
   const author = usersById.get(tweet.author_id);
   const media = (tweet.attachments?.media_keys || [])
     .map((key) => mediaByKey.get(key))
@@ -127,10 +154,7 @@ function normalizeTweet(tweet, usersById, mediaByKey) {
     Number(publicMetrics.retweet_count || 0) +
     Number(publicMetrics.reply_count || 0) +
     Number(publicMetrics.quote_count || 0);
-  const impressionCount =
-    Number(publicMetrics.impression_count || 0) ||
-    Number(privateMetrics.impression_count || 0) ||
-    Number(organicMetrics.impression_count || 0);
+  const impressionCount = Number(publicMetrics.impression_count || 0);
   const totalViews = impressionCount || engagementCount * 20;
   const hoursActive = getHoursSince(tweet.created_at);
   const viewsPerHour = Math.round(totalViews / hoursActive);
@@ -286,6 +310,14 @@ async function readJson(res) {
     return JSON.parse(text);
   } catch {
     return { detail: text };
+  }
+}
+
+function safeStringify(value) {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
   }
 }
 
