@@ -247,6 +247,10 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
     msg += `Source: <b>X</b>\n`;
     msg += `Source Tweet: <a href="${escapeHtml(trend.sourceUrl)}">link</a>\n`;
     if (trend.author) msg += `by @${escapeHtml(trend.author)}\n`;
+    msg += `Viral Shape: <b>${escapeHtml(formatLabel(trend.viralShape || "compounding"))}</b>\n`;
+    msg += `Momentum: <b>${escapeHtml(formatLabel(trend.momentumTrend || "stable"))}</b>\n`;
+    msg += `Discovery Lane: <b>${escapeHtml(trend.discoveryLane || "broad_media_stream")}</b>\n`;
+    if (trend.quoteExplosion) msg += `Quote Explosion Detected ⚡\n`;
     msg += `<b>${escapeHtml(trend.name)}</b>\n`;
   } else if (trend.type === "song") {
     msg += `🎵 <b>TIKTOK TRENDING SOUND</b>\n`;
@@ -362,7 +366,7 @@ export async function sendDigest(trends, scores) {
     }
     msg += ` — <b>${score.total}</b>/100 ${arrow}\n`;
     if (trend.sourcePlatform === "x") {
-      msg += `   ${formatCount(score.metrics.viewsPerHour)} v/hr | ${formatCount(trend.shareVelocity)} shares/hr | ${formatCount(trend.quoteCount)} quotes`;
+      msg += `   ${formatCount(score.metrics.viewsPerHour)} v/hr | ${formatCount(trend.shareVelocity)} shares/hr | ${formatCount(trend.quoteVelocity)} q/hr | ${escapeHtml(formatLabel(trend.viralShape || "compounding"))}`;
     } else if (trend.type === "song") {
       msg += `   ${escapeHtml(trend.artist || "Original Sound")} | #${trend.rank}`;
     } else {
@@ -459,6 +463,11 @@ function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBr
   msg += `${isX ? "Source Tweet" : "Source Post"}: <a href="${escapeHtml(launchBrief.sourceUrl)}">link</a>\n\n`;
 
   if (isX) {
+    msg += `Viral Shape: <b>${escapeHtml(formatLabel(trend.viralShape || "compounding"))}</b>\n`;
+    msg += `Momentum: <b>${escapeHtml(formatLabel(trend.momentumTrend || "stable"))}</b>\n`;
+    msg += `Discovery Lane: <b>${escapeHtml(trend.discoveryLane || "broad_media_stream")}</b>\n`;
+    if (trend.quoteExplosion) msg += `Quote Explosion Detected ⚡\n`;
+    msg += `\n`;
     msg += `<b>X Virality:</b>\n`;
     msg += formatXMetricsCodeBlock(trend, { includeMedia: true, includeReposts: true, includeShape: true });
     msg += `\n<b>X Narrative Tag:</b>\n`;
@@ -581,16 +590,29 @@ function formatXMetricsCodeBlock(trend, options = {}) {
     `⚡ Views/hr:    ${formatCount(trend.viewsPerHour)}`,
     `🔁 Shares:      ${formatCount(trend.shareCount)}`,
     `🚀 Shares/hr:   ${formatCount(trend.shareVelocity)}`,
+    `💬 Quote Vel:   ${formatCount(trend.quoteVelocity)}/hr`,
     `💬 Quotes:      ${formatCount(trend.quoteCount)}`,
     `❤️ Likes:       ${formatCount(trend.likeCount)}`,
-    `🧲 Eng/hr:      ${formatCount(trend.engagementPerHour)}`,
+    `📈 Momentum:    ${formatCount(trend.attentionMomentum)}`,
+    `🧬 Prop Ratio:  ${formatRatio(trend.propagationRatio)}`,
   ];
 
   if (includeReplies) lines.push(`↩ Replies:      ${formatCount(trend.replyCount)}`);
   if (includeReposts) lines.push(`🔁 Reposts:     ${formatCount(trend.repostCount)}`);
+  if (includeReposts) lines.push(`📈 Repost Vel:  ${formatCount(trend.repostVelocity)}/hr`);
   if (includeMedia && trend.mediaType) lines.push(`🎞 Media:       ${trend.mediaType}`);
   if (includeShape && trend.attentionShapeScore) lines.push(`🧲 Shape:       ${formatCount(trend.attentionShapeScore)}`);
 
   const body = lines.join("\n");
   return raw ? `${body}\n` : `<code>${escapeHtml(body)}</code>\n`;
+}
+
+function formatLabel(value) {
+  return String(value || "")
+    .replace(/_/g, " ")
+    .toUpperCase();
+}
+
+function formatRatio(value) {
+  return Number(value || 0).toFixed(3);
 }

@@ -32,6 +32,10 @@ export function scoreTrend(trend, previousSnapshot = null) {
     else if (engagementPerHour >= 2_500) velocityScore = Math.max(velocityScore, 22);
     else if (engagementPerHour >= 1_000) velocityScore = Math.max(velocityScore, 17);
     else if (engagementPerHour >= 500) velocityScore = Math.max(velocityScore, 12);
+    if (trend.attentionMomentum >= 250_000) velocityScore = Math.max(velocityScore, 30);
+    else if (trend.attentionMomentum >= 100_000) velocityScore = Math.max(velocityScore, 26);
+    else if (trend.attentionMomentum >= 50_000) velocityScore = Math.max(velocityScore, 22);
+    else if (trend.attentionMomentum >= 25_000) velocityScore = Math.max(velocityScore, 17);
   }
 
   // ---- VIDEO COUNT (0-30 pts) ----
@@ -45,6 +49,9 @@ export function scoreTrend(trend, previousSnapshot = null) {
     else if (engagementCount >= 5_000) videoScore = 12;
     else if (engagementCount >= 2_000) videoScore = 7;
     else videoScore = Math.round((engagementCount / 2_000) * 7);
+    if (trend.quoteExplosion) videoScore = Math.max(videoScore, 20);
+    if (trend.marketabilityScore >= 70) videoScore = Math.max(videoScore, 22);
+    else if (trend.marketabilityScore >= 50) videoScore = Math.max(videoScore, 17);
   } else if (videoCount >= 50_000) videoScore = 30;
   else if (videoCount >= 20_000) videoScore = 26;
   else if (videoCount >= 10_000) videoScore = 22;

@@ -8,6 +8,7 @@
 import cron from "node-cron";
 import { config } from "./config.js";
 import { fetchAllAttentionSources } from "./providers/index.js";
+import { applyXSnapshotPersistence } from "./providers/xProvider.js";
 import { scoreTrend } from "./scoring.js";
 import { scoreLaunchOpportunity } from "./launchScoring.js";
 import { generateLaunchBrief } from "./launchBrief.js";
@@ -99,6 +100,8 @@ async function runScan() {
       trendsProcessed++;
 
       const prevSnapshot = await getPreviousSnapshot(trend.id);
+      applyXSnapshotPersistence(trend, prevSnapshot);
+      if (trend.sourcePlatform === "x") logXPropagationSnapshot(trend);
       const score = scoreTrend(trend, prevSnapshot);
       await saveTrendSnapshot(trend, score);
 
@@ -214,6 +217,7 @@ async function runDigest() {
     for (const trend of trends) {
       if (isNoise(trend)) continue;
       const prevSnapshot = await getPreviousSnapshot(trend.id);
+      applyXSnapshotPersistence(trend, prevSnapshot);
       const score = scoreTrend(trend, prevSnapshot);
       scored.push({ trend, score });
     }
@@ -279,6 +283,16 @@ function formatParticipation(trend) {
     return `${(trend.engagementCount || 0).toLocaleString()} engagements`;
   }
   return `${(trend.videoCount || 0).toLocaleString()} videos`;
+}
+
+function logXPropagationSnapshot(trend) {
+  console.log(
+    `   🧬 X propagation: shape=${trend.viralShape} momentum=${trend.momentumTrend} ` +
+    `lane=${trend.discoveryLane} attention=${Math.round(trend.attentionMomentum || 0).toLocaleString()} ` +
+    `prop=${Number(trend.propagationRatio || 0).toFixed(3)} ` +
+    `quoteExplosion=${trend.quoteExplosion ? "yes" : "no"} ` +
+    `eng/follow=${Number(trend.engagementToFollowerRate || 0).toFixed(4)}`
+  );
 }
 
 process.on("SIGINT", () => { console.log("\n👋 Shutting down OINK..."); process.exit(0); });

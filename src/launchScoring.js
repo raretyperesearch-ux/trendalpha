@@ -300,8 +300,9 @@ function scoreXMemeClarity({ name, words, trend, riskFlags = [] }) {
   else if (words.length <= 10) score += 1;
 
   if (compact.length >= 4 && compact.length <= 24) score += 2;
-  if (hasRepeatablePhrase(text)) score += 2;
-  if (trend.quoteCount >= 500 || trend.repostCount >= 2_000) score += 1;
+  if ((trend.marketabilityScore || 0) >= 70) score += 2;
+  else if ((trend.marketabilityScore || 0) >= 50) score += 1;
+  if (trend.quoteExplosion || trend.propagationRatio >= 0.12) score += 1;
   if (trend.cryptoSaturatedLanguage) score -= 4;
   if (isHeavyRiskTrend(riskFlags)) score -= 7;
   if (name.length > 45) score -= 2;
@@ -313,7 +314,7 @@ function scoreXVisualStrength({ name, words, trend, riskFlags = [] }) {
   let score = 3;
   if (trend.hasMedia) score += 4;
   if (trend.mediaType === "video" || trend.mediaType === "animated_gif") score += 2;
-  if (words.some((word) => /pig|oink|frog|dog|cat|baby|pepe|wojak|chad|shark|goat|moo|bear|bull|robot|ai|food|game|streamer/i.test(word))) score += 2;
+  if ((trend.marketabilityScore || 0) >= 60) score += 2;
   if ((trend.text || "").length <= 100) score += 1;
   if (isHeavyRiskTrend(riskFlags)) score -= 5;
   return clamp(score, 0, 10);
@@ -355,14 +356,6 @@ function getXReasons({ trend, token, viewsPerHour, breakdown, riskFlags }) {
   }
 
   return reasons.slice(0, 5);
-}
-
-function hasRepeatablePhrase(text = "") {
-  const cleaned = text.toLowerCase().replace(/https?:\/\/\S+/g, "").trim();
-  return (
-    cleaned.length <= 80 &&
-    /\b(no way|bro|this is|what is|i can't|insane|wild|really|why is|let him|she really|he really)\b/i.test(cleaned)
-  );
 }
 
 function isHeavyRiskTrend(riskFlags = []) {

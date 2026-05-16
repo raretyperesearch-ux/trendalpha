@@ -39,7 +39,9 @@ for (const trend of trends.slice(0, MAX_PREVIEW)) {
   if (trend.sourcePlatform === "x") {
     console.log(`Author: @${trend.author}`);
     console.log(`Views/hr: ${formatCount(trend.viewsPerHour)} | Shares/hr: ${formatCount(trend.shareVelocity)} | Quotes: ${formatCount(trend.quoteCount)}`);
-    console.log(`Attention Shape: ${formatCount(trend.attentionShapeScore)}`);
+    console.log(`Viral Shape: ${trend.viralShape} | Momentum: ${trend.momentumTrend} | Lane: ${trend.discoveryLane}`);
+    console.log(`Attention Momentum: ${formatCount(trend.attentionMomentum)} | Shape: ${formatCount(trend.attentionShapeScore)}`);
+    console.log(`Quote Explosion: ${trend.quoteExplosion ? "yes" : "no"} | Propagation Ratio: ${Number(trend.propagationRatio || 0).toFixed(3)}`);
   } else {
     console.log(`Views/hr: ${formatCount(trendScore.metrics.viewsPerHour)} | Videos: ${formatCount(trend.videoCount)}`);
   }

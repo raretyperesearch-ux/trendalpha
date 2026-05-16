@@ -11,7 +11,7 @@
         OINK
 ```
 
-**OINK is the attention layer for internet-native markets.**
+**OINK is an autonomous attention-layer engine for internet-native markets.**
 
 OINK was formerly TrendAlpha. TrendAlpha proved the first idea: internet trends can become market narratives before most people notice them. OINK takes the next step: it watches viral attention across social platforms, scores whether that attention could become a market, generates launch briefs, and prepares candidates for human review.
 
@@ -32,15 +32,17 @@ Together, they give OINK a better read on what the internet is noticing before t
 
 ## What OINK Looks For
 
-OINK is tuned for raw viral attention, not crypto chatter.
+OINK is tuned for raw viral attention, not crypto chatter. It no longer relies on meme keyword search as the core discovery mechanism.
 
 It cares about:
 
-- Fast view and engagement velocity
-- Fresh posts and trends
-- Meme clarity
-- Simple names that can become clean tickers
-- Strong visual hooks
+- Propagation and acceleration
+- Repost cascades
+- Quote-chain behavior
+- Attention persistence
+- Cross-community spread
+- Unusually high engagement relative to account size
+- Early marketability emerging from remix structure
 - Whether a related token already exists
 - Risk flags around brands, celebrities, tragedy, or already-saturated crypto language
 
@@ -85,19 +87,23 @@ Launch candidate cards include the source, score, conviction, reasons, suggested
 
 ### X Virality Metrics
 
-OINK’s X scanner prioritizes views and shares because reposts and quote tweets show distribution and meme remix potential. Views show reach, reposts show spread, quotes show remix pressure, and velocity shows whether the post is moving now.
+OINK’s X scanner prioritizes propagation dynamics. Views show reach, repost velocity shows distribution, quote velocity shows remix pressure, engagement acceleration shows whether attention is compounding, and attention momentum ties those signals together.
+
+OINK classifies viral shape as `explosive`, `compounding`, `slowburn`, `saturated`, `likely_bot_amplified`, `low_conversion`, or `cross_community`. It also tracks momentum trend from snapshots as `rising`, `stable`, `decaying`, or `reigniting`.
 
 Custom `X_SEARCH_QUERIES` must include at least one real search term. X rejects queries made only from operators such as `has:media lang:en -is:retweet`. Separate multiple queries with `|`. Keep discovery broad; OINK ranks X posts by attention shape rather than crypto or meme keywords.
 
 Example:
 
 ```bash
-X_SEARCH_QUERIES=(no way OR insane OR wild) has:media lang:en -is:retweet -is:reply|(dog OR cat OR robot) has:media lang:en -is:retweet -is:reply
+X_SEARCH_QUERIES=(the OR this OR what OR how) has:media lang:en -is:retweet -is:reply|(video OR clip OR photo OR moment) has:media lang:en -is:retweet -is:reply
 ```
 
 When X impressions are unavailable, OINK still filters candidates with engagement velocity and attention shape score. Tune `X_MIN_ENGAGEMENT_PER_HOUR`, `X_MIN_ENGAGEMENT_ACCELERATION`, quote/repost velocity thresholds, and `X_MIN_ATTENTION_SHAPE_SCORE` if Railway logs show good posts being rejected below thresholds. Strong candidates can stay eligible up to `X_MAX_STRONG_POST_AGE_HOURS`.
 
 If recent search returns only low-metric posts, OINK can keep a tiny scout sample with `X_MIN_SCOUT_SHAPE_SCORE` and `X_MAX_SCOUT_POSTS_PER_QUERY`. Scout posts still go through the normal scoring and alert thresholds, so they help visibility without bypassing Telegram quality controls.
+
+Discovery lanes include `broad_media_stream`, `trusted_viral_accounts`, `emerging_accounts`, and `quote_explosion_watch`. Keywords only lightly bias ranking and improve readability; they do not determine eligibility.
 
 ### X Narrative Tags
 

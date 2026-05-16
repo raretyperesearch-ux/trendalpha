@@ -38,7 +38,7 @@ export async function saveTrendSnapshot(trend, score) {
       video_count: Number(trend.videoCount || 0),
       views_per_hour: score.metrics.viewsPerHour,
       score: score.total,
-      score_breakdown: score.breakdown,
+      score_breakdown: buildScoreBreakdown(score, trend),
       scanned_at: new Date().toISOString(),
     };
 
@@ -76,6 +76,25 @@ function getSnapshotTrendType(trend) {
   return "hashtag";
 }
 
+function buildScoreBreakdown(score, trend) {
+  const breakdown = { ...(score.breakdown || {}) };
+  if (trend.sourcePlatform === "x") {
+    breakdown.x = {
+      attentionMomentum: Number(trend.attentionMomentum || 0),
+      shareVelocity: Number(trend.shareVelocity || 0),
+      quoteVelocity: Number(trend.quoteVelocity || 0),
+      repostVelocity: Number(trend.repostVelocity || 0),
+      engagementAcceleration: Number(trend.engagementAcceleration || 0),
+      attentionShapeScore: Number(trend.attentionShapeScore || 0),
+      propagationRatio: Number(trend.propagationRatio || 0),
+      quoteToLikeRate: Number(trend.quoteToLikeRate || 0),
+      viralShape: trend.viralShape || "unknown",
+      momentumTrend: trend.momentumTrend || "stable",
+    };
+  }
+  return breakdown;
+}
+
 /**
  * Get the previous snapshot for a trend (for acceleration calc)
  */
@@ -96,6 +115,7 @@ export async function getPreviousSnapshot(trendId) {
       videoCount: data.video_count,
       score: data.score,
       scannedAt: data.scanned_at,
+      x: data.score_breakdown?.x || null,
     };
   } catch {
     return null;
