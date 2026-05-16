@@ -11,7 +11,7 @@
         OINK
 ```
 
-**OINK is an autonomous attention-layer engine that detects optimal internet-native market formation windows.**
+**OINK is a persistent narrative intelligence engine tracking internet-native market formation over time.**
 
 OINK was formerly TrendAlpha. TrendAlpha proved the first idea: internet trends can become market narratives before most people notice them. OINK takes the next step: it watches viral attention across social platforms, scores whether that attention could become a market, generates launch briefs, and prepares candidates for human review.
 
@@ -107,6 +107,23 @@ Cluster intelligence tracks:
 Cluster lifecycle states are mapped into market phases: `emerging`, `forming`, `accelerating`, `breakout`, `saturated`, `decaying`, `dormant`, and `reigniting`.
 
 A cluster is stronger when multiple posts reinforce the same narrative, multiple accounts carry it into different communities, remix count expands, and momentum persists across scans. If a dormant narrative suddenly accelerates again, OINK marks it as `reigniting` and boosts review priority.
+
+## Narrative Memory
+
+OINK persists narrative cluster snapshots in Supabase so it can model lifecycle movement over time instead of only reading a single scan. The `narrative_cluster_snapshots` table stores phase, momentum, propagation shape, launch readiness, persistence, swarm pressure, saturation, remixability, cross-community score, attention totals, and the raw JSON snapshot.
+
+Narrative memory tracks:
+
+- Phase transitions across `emerging`, `forming`, `accelerating`, `breakout`, `saturated`, `decaying`, `dormant`, and `reigniting`
+- Acceleration changes and inflection points
+- Persistence growth and momentum durability
+- Saturation waves and copycat swarm escalation
+- Re-emergence events when old narratives become active again
+- Decay curves and missed launch windows
+
+If the dedicated memory table is missing or rejects a payload, OINK retries a minimal insert and falls back to the existing `trend_snapshots` table. Scans should continue even when Supabase schema changes are incomplete.
+
+Apply `supabase/migration.sql` in the Supabase SQL editor to create or update the memory table and indexes.
 
 ## Launch Flow
 

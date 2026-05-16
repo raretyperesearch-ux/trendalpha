@@ -612,6 +612,18 @@ export function formatNarrativeClusterAlert(cluster, { mode = "rich" } = {}) {
   return constrainTelegramMessage(msg);
 }
 
+export function formatNarrativeMemoryDebug({ cluster, analytics = {} }) {
+  let msg = `🧠 <b>OINK NARRATIVE MEMORY</b>\n\n`;
+  msg += `Cluster:\n<b>${escapeHtml(cluster.canonicalEntity || cluster.clusterId || "Unknown")}</b>\n\n`;
+  msg += `Age:\n${escapeHtml(String(analytics.ageHours ?? 0))}h\n\n`;
+  msg += `Phase:\n<b>${escapeHtml(formatLabel(cluster.lifecycleState || "emerging"))}</b>\n\n`;
+  msg += `Persistence:\n<b>${Number(cluster.propagationPersistence || analytics.persistenceScore || 0)}/100</b>\n\n`;
+  msg += `Re-emergence Risk:\n<b>${escapeHtml(analytics.reEmergenceRisk || "LOW")}</b>\n\n`;
+  msg += `Swarm Pressure:\n<b>${escapeHtml(labelPressure(cluster.swarmPressure))}</b>\n\n`;
+  msg += `Momentum Stability:\n<b>${escapeHtml(analytics.momentumStabilityLabel || "LOW")}</b>`;
+  return constrainTelegramMessage(msg);
+}
+
 function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBrief, preparedLaunch, mode = "rich" }) {
   const reasons = launchScore.reasons?.length
     ? launchScore.reasons.slice(0, 3)

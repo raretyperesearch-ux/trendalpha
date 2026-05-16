@@ -9,9 +9,11 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { config } from "./config.js";
-import { serializeNarrativeCluster } from "./narrativeClusters.js";
+import { NarrativeMemoryService } from "./narrativeMemoryService.js";
 
 let supabase = null;
+const narrativeMemory = new NarrativeMemoryService();
+let warnedMissingNarrativeTable = false;
 
 /**
  * Initialize Supabase client
@@ -35,10 +37,10 @@ export async function saveTrendSnapshot(trend, score) {
       trend_id: trend.id,
       trend_name: trend.name,
       trend_type: getSnapshotTrendType(trend),
-      total_views: Number(trend.totalViews || 0),
-      video_count: Number(trend.videoCount || 0),
-      views_per_hour: score.metrics.viewsPerHour,
-      score: score.total,
+      total_views: intValue(trend.totalViews),
+      video_count: intValue(trend.videoCount),
+      views_per_hour: intValue(score.metrics.viewsPerHour),
+      score: intValue(score.total),
       score_breakdown: buildScoreBreakdown(score, trend),
       scanned_at: new Date().toISOString(),
     };
@@ -58,10 +60,10 @@ async function saveMinimalTrendSnapshot(trend, score) {
       trend_id: String(trend.id || "").slice(0, 128),
       trend_name: String(trend.name || "Unknown").slice(0, 255),
       trend_type: getSnapshotTrendType(trend),
-      total_views: Number(trend.totalViews || 0),
-      video_count: Number(trend.videoCount || 0),
-      views_per_hour: Number(score.metrics.viewsPerHour || 0),
-      score: Number(score.total || 0),
+      total_views: intValue(trend.totalViews),
+      video_count: intValue(trend.videoCount),
+      views_per_hour: intValue(score.metrics.viewsPerHour),
+      score: intValue(score.total),
       scanned_at: new Date().toISOString(),
     });
 
@@ -81,31 +83,31 @@ function buildScoreBreakdown(score, trend) {
   const breakdown = { ...(score.breakdown || {}) };
   if (trend.sourcePlatform === "x") {
     breakdown.x = {
-      attentionMomentum: Number(trend.attentionMomentum || 0),
-      shareVelocity: Number(trend.shareVelocity || 0),
-      quoteVelocity: Number(trend.quoteVelocity || 0),
-      repostVelocity: Number(trend.repostVelocity || 0),
-      engagementAcceleration: Number(trend.engagementAcceleration || 0),
-      attentionShapeScore: Number(trend.attentionShapeScore || 0),
+      attentionMomentum: intValue(trend.attentionMomentum),
+      shareVelocity: intValue(trend.shareVelocity),
+      quoteVelocity: intValue(trend.quoteVelocity),
+      repostVelocity: intValue(trend.repostVelocity),
+      engagementAcceleration: intValue(trend.engagementAcceleration),
+      attentionShapeScore: intValue(trend.attentionShapeScore),
       propagationRatio: Number(trend.propagationRatio || 0),
       quoteToLikeRate: Number(trend.quoteToLikeRate || 0),
       viralShape: trend.viralShape || "unknown",
       momentumTrend: trend.momentumTrend || "stable",
-      launchWorthinessScore: Number(trend.launchWorthinessScore || 0),
+      launchWorthinessScore: intValue(trend.launchWorthinessScore),
       launchRecommendation: trend.launchRecommendation || "WATCH",
       narrativePhase: trend.narrativePhase || "emerging",
-      launchReadiness: Number(trend.launchReadiness || 0),
-      saturationPressure: Number(trend.saturationPressure || 0),
-      swarmPressure: Number(trend.swarmPressure || 0),
+      launchReadiness: intValue(trend.launchReadiness),
+      saturationPressure: intValue(trend.saturationPressure),
+      swarmPressure: intValue(trend.swarmPressure),
       phaseRecommendation: trend.phaseRecommendation || null,
       launchWindow: trend.launchWindow || null,
       idealLaunchTiming: trend.idealLaunchTiming || null,
-      adaptiveLaunchThreshold: Number(trend.adaptiveLaunchThreshold || 0),
-      accelerationSlope: Number(trend.accelerationSlope || 0),
-      momentumPersistence: Number(trend.momentumPersistence || 0),
-      quoteChainExpansion: Number(trend.quoteChainExpansion || 0),
+      adaptiveLaunchThreshold: intValue(trend.adaptiveLaunchThreshold),
+      accelerationSlope: intValue(trend.accelerationSlope),
+      momentumPersistence: intValue(trend.momentumPersistence),
+      quoteChainExpansion: intValue(trend.quoteChainExpansion),
       propagationHalfLife: trend.propagationHalfLife || null,
-      remixGrowthRate: Number(trend.remixGrowthRate || 0),
+      remixGrowthRate: intValue(trend.remixGrowthRate),
       crossCommunityBreakoutTiming: trend.crossCommunityBreakoutTiming || null,
       accelerationInflectionPoint: trend.accelerationInflectionPoint || null,
       missedWindow: Boolean(trend.missedWindow),
@@ -152,33 +154,20 @@ export async function getPreviousSnapshot(trendId) {
 export async function saveNarrativeClusterSnapshot(cluster) {
   if (!supabase || !cluster?.clusterId) return false;
 
+  const row = narrativeMemory.buildSnapshotRow(cluster);
   try {
-    const snapshot = serializeNarrativeCluster(cluster);
-    const avgShareVelocity = average(cluster.relatedPosts?.map((post) => post.shareVelocity) || []);
-    const avgQuoteVelocity = average(cluster.relatedPosts?.map((post) => post.quoteVelocity) || []);
-
-    const { error } = await supabase.from("narrative_cluster_snapshots").insert({
-      cluster_id: cluster.clusterId,
-      canonical_entity: cluster.canonicalEntity,
-      archetype: cluster.archetype,
-      lifecycle_state: cluster.lifecycleState,
-      total_attention: Number(cluster.totalAttention || 0),
-      total_momentum: Number(cluster.totalMomentum || 0),
-      propagation_persistence: Number(cluster.propagationPersistence || 0),
-      community_spread_score: Number(cluster.communitySpreadScore || 0),
-      launch_worthiness_score: Number(cluster.launchWorthinessScore || 0),
-      recommendation: cluster.recommendation,
-      avg_share_velocity: avgShareVelocity,
-      avg_quote_velocity: avgQuoteVelocity,
-      snapshot,
-      scanned_at: new Date().toISOString(),
-    });
+    const { error } = await supabase.from("narrative_cluster_snapshots").insert(row);
 
     if (error) throw error;
     return true;
   } catch (err) {
+    if (isMissingTableError(err)) {
+      warnMissingNarrativeTable();
+      return saveNarrativeClusterFallback(cluster);
+    }
     console.error("❌ Failed to save narrative cluster snapshot:", err.message);
-    return saveNarrativeClusterFallback(cluster);
+    console.error("   Rejected narrative fields:", JSON.stringify(narrativeMemory.getRejectedFieldDiagnostics(row)));
+    return retryMinimalNarrativeClusterInsert(cluster);
   }
 }
 
@@ -190,29 +179,47 @@ export async function getRecentNarrativeClusterSnapshots(hours = 72) {
     const { data, error } = await supabase
       .from("narrative_cluster_snapshots")
       .select("*")
-      .gte("scanned_at", since)
-      .order("scanned_at", { ascending: false })
+      .gte("timestamp", since)
+      .order("timestamp", { ascending: false })
       .limit(250);
 
     if (error) throw error;
-    return data || [];
+    return narrativeMemory.normalizeHistoryRows(data || []);
   } catch (err) {
-    console.error("❌ Failed to load narrative cluster snapshots:", err.message);
+    if (isMissingTableError(err)) {
+      warnMissingNarrativeTable();
+    } else {
+      console.error("❌ Failed to load narrative cluster snapshots:", err.message);
+    }
     return getRecentNarrativeClusterSnapshotsFallback(hours);
+  }
+}
+
+async function retryMinimalNarrativeClusterInsert(cluster) {
+  try {
+    const minimal = narrativeMemory.buildMinimalSnapshotRow(cluster);
+    const { error } = await supabase.from("narrative_cluster_snapshots").insert(minimal);
+    if (error) throw error;
+    console.log("   ✅ Saved minimal narrative cluster snapshot");
+    return true;
+  } catch (err) {
+    if (isMissingTableError(err)) warnMissingNarrativeTable();
+    else console.error("❌ Minimal narrative cluster insert failed:", err.message);
+    return saveNarrativeClusterFallback(cluster);
   }
 }
 
 async function saveNarrativeClusterFallback(cluster) {
   try {
-    const snapshot = serializeNarrativeCluster(cluster);
+    const snapshot = narrativeMemory.buildSnapshotRow(cluster).snapshot;
     const { error } = await supabase.from("trend_snapshots").insert({
       trend_id: `cluster:${String(cluster.clusterId || "").slice(0, 118)}`,
       trend_name: String(cluster.canonicalEntity || "Narrative Cluster").slice(0, 255),
       trend_type: "hashtag",
-      total_views: Number(cluster.totalAttention || 0),
-      video_count: Number(cluster.relatedPosts?.length || 0),
-      views_per_hour: Number(average(cluster.relatedPosts?.map((post) => post.shareVelocity) || [])),
-      score: Number(cluster.launchWorthinessScore || 0),
+      total_views: intValue(cluster.totalAttention),
+      video_count: intValue(cluster.relatedPosts?.length),
+      views_per_hour: intValue(average(cluster.relatedPosts?.map((post) => post.shareVelocity) || [])),
+      score: intValue(cluster.launchReadiness || cluster.launchWorthinessScore),
       score_breakdown: { narrativeCluster: snapshot },
       scanned_at: new Date().toISOString(),
     });
@@ -238,15 +245,7 @@ async function getRecentNarrativeClusterSnapshotsFallback(hours) {
       .limit(250);
 
     if (error) throw error;
-    return (data || []).map((row) => ({
-      cluster_id: String(row.trend_id || "").replace(/^cluster:/, ""),
-      canonical_entity: row.trend_name,
-      total_attention: row.total_views,
-      total_momentum: row.score_breakdown?.narrativeCluster?.totalMomentum || 0,
-      propagation_persistence: row.score_breakdown?.narrativeCluster?.propagationPersistence || 0,
-      snapshot: row.score_breakdown?.narrativeCluster || null,
-      scanned_at: row.scanned_at,
-    })).filter((row) => row.snapshot);
+    return narrativeMemory.normalizeHistoryRows(data || []);
   } catch (err) {
     console.error("❌ Narrative cluster fallback load failed:", err.message);
     return [];
@@ -307,13 +306,13 @@ export async function recordAlert(trend, score, token) {
     const { error } = await supabase.from("alerts_sent").insert({
       trend_id: trend.id,
       trend_name: trend.name,
-      score: score.total,
+      score: intValue(score.total),
       token_found: !!canonicalToken,
       token_name: canonicalToken?.tokenName || null,
       token_address: canonicalToken?.tokenAddress || null,
       token_chain: canonicalToken?.chain || null,
       token_price_at_alert: canonicalToken?.priceUsd || null,
-      token_mcap_at_alert: canonicalToken?.marketCap || null,
+      token_mcap_at_alert: canonicalToken?.marketCap ? intValue(canonicalToken.marketCap) : null,
       sent_at: new Date().toISOString(),
     });
 
@@ -387,4 +386,22 @@ function average(values) {
   const nums = values.map(Number).filter(Number.isFinite);
   if (nums.length === 0) return 0;
   return nums.reduce((sum, value) => sum + value, 0) / nums.length;
+}
+
+function intValue(value) {
+  const num = Number(value || 0);
+  if (!Number.isFinite(num)) return 0;
+  return Math.round(num);
+}
+
+function isMissingTableError(err) {
+  const message = String(err?.message || "");
+  const code = String(err?.code || "");
+  return code === "42P01" || message.includes("Could not find the table") || message.includes("does not exist");
+}
+
+function warnMissingNarrativeTable() {
+  if (warnedMissingNarrativeTable) return;
+  warnedMissingNarrativeTable = true;
+  console.warn("⚠️  narrative_cluster_snapshots table missing; using trend_snapshots fallback until Supabase migration is applied.");
 }

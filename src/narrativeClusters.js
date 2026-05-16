@@ -472,17 +472,18 @@ function indexPreviousClusters(previousSnapshots = []) {
   const map = new Map();
   for (const item of previousSnapshots) {
     const snapshot = item.snapshot || item;
-    const clusterId = snapshot.clusterId || item.cluster_id;
+    const clusterId = snapshot.clusterId || item.clusterId || item.cluster_id;
     if (!clusterId) continue;
+    const relatedPosts = snapshot.relatedPosts || [];
     map.set(clusterId, {
       ...snapshot,
       clusterId,
       firstSeenAt: snapshot.firstSeenAt || item.first_seen_at,
-      lastSeenAt: snapshot.lastSeenAt || item.last_seen_at || item.scanned_at,
-      totalMomentum: snapshot.totalMomentum ?? item.total_momentum,
-      propagationPersistence: snapshot.propagationPersistence ?? item.propagation_persistence,
-      avgShareVelocity: snapshot.avgShareVelocity ?? item.avg_share_velocity,
-      avgQuoteVelocity: snapshot.avgQuoteVelocity ?? item.avg_quote_velocity,
+      lastSeenAt: snapshot.lastSeenAt || item.last_seen_at || item.scanned_at || item.timestamp,
+      totalMomentum: snapshot.totalMomentum ?? item.total_momentum ?? 0,
+      propagationPersistence: snapshot.propagationPersistence ?? item.propagation_persistence ?? item.persistenceScore,
+      avgShareVelocity: snapshot.avgShareVelocity ?? item.avg_share_velocity ?? average(relatedPosts.map((post) => post.shareVelocity)),
+      avgQuoteVelocity: snapshot.avgQuoteVelocity ?? item.avg_quote_velocity ?? average(relatedPosts.map((post) => post.quoteVelocity)),
     });
   }
   return map;

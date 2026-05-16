@@ -49,6 +49,69 @@ CREATE INDEX IF NOT EXISTS idx_alerts_dedup
 CREATE INDEX IF NOT EXISTS idx_alerts_hitrate 
   ON alerts_sent(sent_at DESC, was_hit);
 
+-- Narrative cluster snapshots — persistent memory for lifecycle intelligence
+CREATE TABLE IF NOT EXISTS narrative_cluster_snapshots (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  cluster_id TEXT NOT NULL,
+  cluster_name TEXT NOT NULL,
+  timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  narrative_phase TEXT NOT NULL DEFAULT 'emerging',
+  momentum_state TEXT NOT NULL DEFAULT 'stable',
+  propagation_shape TEXT,
+  launch_worthiness INT DEFAULT 0,
+  persistence_score INT DEFAULT 0,
+  identity_strength INT DEFAULT 0,
+  swarm_pressure INT DEFAULT 0,
+  narrative_uniqueness INT DEFAULT 0,
+  launch_readiness INT DEFAULT 0,
+  total_attention BIGINT DEFAULT 0,
+  total_posts INT DEFAULT 0,
+  total_accounts INT DEFAULT 0,
+  cross_community_score INT DEFAULT 0,
+  remixability_score INT DEFAULT 0,
+  saturation_score INT DEFAULT 0,
+  acceleration_score INT DEFAULT 0,
+  snapshot JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE narrative_cluster_snapshots
+  ADD COLUMN IF NOT EXISTS cluster_name TEXT,
+  ADD COLUMN IF NOT EXISTS timestamp TIMESTAMPTZ DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS narrative_phase TEXT DEFAULT 'emerging',
+  ADD COLUMN IF NOT EXISTS momentum_state TEXT DEFAULT 'stable',
+  ADD COLUMN IF NOT EXISTS propagation_shape TEXT,
+  ADD COLUMN IF NOT EXISTS launch_worthiness INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS persistence_score INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS identity_strength INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS swarm_pressure INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS narrative_uniqueness INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS launch_readiness INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS total_attention BIGINT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS total_posts INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS total_accounts INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS cross_community_score INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS remixability_score INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS saturation_score INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS acceleration_score INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS snapshot JSONB DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+
+CREATE INDEX IF NOT EXISTS idx_narrative_clusters_cluster_id
+  ON narrative_cluster_snapshots(cluster_id, timestamp DESC);
+
+CREATE INDEX IF NOT EXISTS idx_narrative_clusters_timestamp
+  ON narrative_cluster_snapshots(timestamp DESC);
+
+CREATE INDEX IF NOT EXISTS idx_narrative_clusters_phase
+  ON narrative_cluster_snapshots(narrative_phase);
+
+CREATE INDEX IF NOT EXISTS idx_narrative_clusters_launch_readiness
+  ON narrative_cluster_snapshots(launch_readiness DESC);
+
+CREATE INDEX IF NOT EXISTS idx_narrative_clusters_persistence
+  ON narrative_cluster_snapshots(persistence_score DESC);
+
 -- ============================================================
 -- OPTIONAL: Row Level Security (enable if you want)
 -- ============================================================
