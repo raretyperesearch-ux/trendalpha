@@ -109,6 +109,7 @@ The dashboard is read-only. It shows recent attention candidates and the $OINK b
 
 ```bash
 npm run scan
+npm run scan:dry
 npm run test-launch
 npm run test-launch-created
 npm run test-x

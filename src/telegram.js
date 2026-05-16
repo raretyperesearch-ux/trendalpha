@@ -234,7 +234,7 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
   if (isNewEntry) {
     msg += `🆕 <b>NEW TREND JUST ENTERED TOP 100</b>\n\n`;
   }
-  msg += `${conviction.emoji} <b>OINK ATTENTION ALERT</b>\n\n`;
+  msg += `${trend.sourcePlatform === "x" ? "🐷" : conviction.emoji} <b>${trend.sourcePlatform === "x" ? "OINK X ATTENTION SIGNAL" : "OINK ATTENTION ALERT"}</b>\n\n`;
 
   // Score
   msg += `🎯 SCORE: <b>${score.total}</b>/100\n`;

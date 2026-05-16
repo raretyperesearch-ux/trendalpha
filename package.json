@@ -8,6 +8,7 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "scan": "node src/scripts/runScan.js",
+    "scan:dry": "node src/scripts/scanDryRun.js",
     "dashboard": "node src/scripts/dashboard.js",
     "test-alert": "node src/scripts/testAlert.js",
     "test-launch-created": "node src/scripts/testLaunchCreatedAlert.js",
