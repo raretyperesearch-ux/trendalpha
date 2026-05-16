@@ -245,6 +245,9 @@ async function main() {
 
   bot.start({
     onStart: () => console.log("🤖 Telegram bot is online"),
+  }).catch((err) => {
+    console.error("⚠️  Telegram polling stopped:", err.message);
+    console.error("   Alerts can still be sent; another bot process may already be polling commands.");
   });
 
   // Run first scan immediately
