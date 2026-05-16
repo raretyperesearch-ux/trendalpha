@@ -244,8 +244,10 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
   msg += `━━━━━━━━━━━━━━━━━━━━\n`;
   if (trend.sourcePlatform === "x") {
     msg += `𝕏 <b>VIRAL X POST</b>\n`;
-    msg += `<b><a href="${escapeHtml(trend.sourceUrl)}">${escapeHtml(trend.name)}</a></b>\n`;
+    msg += `Source: <b>X</b>\n`;
+    msg += `Source Tweet: <a href="${escapeHtml(trend.sourceUrl)}">link</a>\n`;
     if (trend.author) msg += `by @${escapeHtml(trend.author)}\n`;
+    msg += `<b>${escapeHtml(trend.name)}</b>\n`;
   } else if (trend.type === "song") {
     msg += `🎵 <b>TIKTOK TRENDING SOUND</b>\n`;
     const songName = escapeHtml(trend.name);
@@ -272,12 +274,7 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
     msg += `📊 Song Rank:    #${trend.rank}\n`;
     if (trend.duration) msg += `⏱ Duration:     ${trend.duration}s\n`;
   } else if (trend.sourcePlatform === "x") {
-    msg += `⚡ Views/hour:   ${viewsPerHourStr}\n`;
-    msg += `👁 Est. views:   ${formatCount(trend.totalViews)}\n`;
-    msg += `❤️ Likes:        ${formatCount(trend.likeCount)}\n`;
-    msg += `🔁 Reposts:      ${formatCount(trend.repostCount)}\n`;
-    msg += `💬 Replies:      ${formatCount(trend.replyCount)}\n`;
-    msg += `🧲 Eng/hr:       ${formatCount(trend.engagementPerHour)}\n`;
+    msg += formatXMetricsCodeBlock(trend, { includeReposts: true, includeShape: true, raw: true });
   } else {
     msg += `⚡ Views/hour:   ${viewsPerHourStr}\n`;
     msg += `👁 Total views:   ${formatCount(trend.totalViews)}\n`;
@@ -365,7 +362,7 @@ export async function sendDigest(trends, scores) {
     }
     msg += ` — <b>${score.total}</b>/100 ${arrow}\n`;
     if (trend.sourcePlatform === "x") {
-      msg += `   ${formatCount(score.metrics.viewsPerHour)} v/hr | ${formatCount(trend.engagementCount)} engagements`;
+      msg += `   ${formatCount(score.metrics.viewsPerHour)} v/hr | ${formatCount(trend.shareVelocity)} shares/hr | ${formatCount(trend.quoteCount)} quotes`;
     } else if (trend.type === "song") {
       msg += `   ${escapeHtml(trend.artist || "Original Sound")} | #${trend.rank}`;
     } else {
@@ -450,14 +447,23 @@ function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBr
     ? launchScore.reasons.slice(0, 3)
     : ["Attention velocity cleared OINK launch review.", "Market formation appears early.", "Trend is suitable for candidate preparation."];
 
-  let msg = `🐷 <b>OINK LAUNCH CANDIDATE</b>\n\n`;
+  const isX = trend.sourcePlatform === "x";
+  let msg = `🐷 <b>${isX ? "OINK X LAUNCH CANDIDATE" : "OINK LAUNCH CANDIDATE"}</b>\n\n`;
   msg += `Launch Score: <b>${launchScore.total}/100</b>\n`;
   msg += `Conviction: <b>${escapeHtml(launchScore.label)}</b>\n`;
   msg += `Trend Score: <b>${trendScore.total}/100</b>\n\n`;
 
   msg += `Source: <b>${escapeHtml(getSourceLabel(trend))}</b>\n`;
+  if (isX && trend.author) msg += `Author: @${escapeHtml(trend.author)}\n`;
   msg += `Trend: <b>${escapeHtml(trend.name)}</b>\n`;
-  msg += `Source Post: <a href="${escapeHtml(launchBrief.sourceUrl)}">link</a>\n\n`;
+  msg += `${isX ? "Source Tweet" : "Source Post"}: <a href="${escapeHtml(launchBrief.sourceUrl)}">link</a>\n\n`;
+
+  if (isX) {
+    msg += `<b>X Virality:</b>\n`;
+    msg += formatXMetricsCodeBlock(trend, { includeMedia: true, includeReposts: true, includeShape: true });
+    msg += `\n<b>X Narrative Tag:</b>\n`;
+    msg += `${escapeHtml(launchBrief.socialTag || "#OINKLaunch")}\n\n`;
+  }
 
   msg += `<b>Why OINK Selected It:</b>\n`;
   for (const reason of reasons) {
@@ -470,6 +476,15 @@ function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBr
 
   msg += `<b>Launch Thesis:</b>\n`;
   msg += `${escapeHtml(launchBrief.thesis)}\n\n`;
+
+  if (isX) {
+    msg += `<b>Bring It Back To The Source:</b>\n`;
+    msg += `${escapeHtml(launchBrief.sourceBacklinkText || "")}\n\n`;
+    if (launchBrief.xLaunchPost) {
+      msg += `<b>Suggested X Post:</b>\n`;
+      msg += `<code>${escapeHtml(launchBrief.xLaunchPost)}</code>\n\n`;
+    }
+  }
 
   if (launchBrief.existingToken) {
     const token = launchBrief.existingToken;
@@ -506,4 +521,76 @@ function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBr
 function getSourceLabel(trend) {
   if (trend.sourcePlatform === "x") return "X";
   return "TikTok";
+}
+
+export async function sendLaunchCreatedAlert({ trend, launchBrief, launchedToken, feeSummary = null }) {
+  if (!bot) throw new Error("Bot not initialized — call initBot() first");
+
+  const message = formatLaunchCreatedAlert({ trend, launchBrief, launchedToken, feeSummary });
+  await bot.api.sendMessage(config.telegram.channelId, message, {
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+  });
+  console.log(`📤 Launch-created alert sent: ${launchedToken.name} (${launchedToken.ticker})`);
+  return true;
+}
+
+export function formatLaunchCreatedAlert({ trend, launchBrief, launchedToken, feeSummary = null }) {
+  const ticker = launchedToken.ticker?.startsWith("$")
+    ? launchedToken.ticker
+    : `$${launchedToken.ticker}`;
+
+  let msg = `🐷 <b>OINK MARKET CREATED</b>\n\n`;
+  msg += `Source: <b>${escapeHtml(getSourceLabel(trend))}</b>\n`;
+  if (trend.sourcePlatform === "x") {
+    msg += `Original Viral Tweet: <a href="${escapeHtml(launchBrief.sourceUrl)}">link</a>\n\n`;
+    msg += `<b>X Narrative Tag:</b>\n`;
+    msg += `${escapeHtml(launchBrief.socialTag || "#OINKLaunch")}\n\n`;
+  } else {
+    msg += `Original Source: <a href="${escapeHtml(launchBrief.sourceUrl)}">link</a>\n\n`;
+  }
+
+  msg += `<b>Market:</b>\n`;
+  msg += `${escapeHtml(launchedToken.name)} (${escapeHtml(ticker)})\n\n`;
+  msg += `<b>Contract:</b>\n`;
+  msg += `<code>${escapeHtml(launchedToken.contractAddress || "pending")}</code>\n\n`;
+  msg += `<b>Launch:</b>\n`;
+  if (launchedToken.launchUrl) {
+    msg += `<a href="${escapeHtml(launchedToken.launchUrl)}">${escapeHtml(launchedToken.platform || "launch link")}</a>\n\n`;
+  } else {
+    msg += `${escapeHtml(launchedToken.platform || "pending")}\n\n`;
+  }
+  msg += `<b>Flywheel:</b>\n`;
+  msg += `Launch Fees → $OINK Buybacks\n`;
+  if (feeSummary) msg += `${escapeHtml(feeSummary)}\n`;
+  msg += `\nThis market was created from viral internet attention detected by OINK.`;
+
+  return msg;
+}
+
+function formatXMetricsCodeBlock(trend, options = {}) {
+  const {
+    includeMedia = false,
+    includeReposts = false,
+    includeReplies = false,
+    includeShape = false,
+    raw = false,
+  } = options;
+  const lines = [
+    `👁 Views:       ${formatCount(trend.totalViews)}`,
+    `⚡ Views/hr:    ${formatCount(trend.viewsPerHour)}`,
+    `🔁 Shares:      ${formatCount(trend.shareCount)}`,
+    `🚀 Shares/hr:   ${formatCount(trend.shareVelocity)}`,
+    `💬 Quotes:      ${formatCount(trend.quoteCount)}`,
+    `❤️ Likes:       ${formatCount(trend.likeCount)}`,
+    `🧲 Eng/hr:      ${formatCount(trend.engagementPerHour)}`,
+  ];
+
+  if (includeReplies) lines.push(`↩ Replies:      ${formatCount(trend.replyCount)}`);
+  if (includeReposts) lines.push(`🔁 Reposts:     ${formatCount(trend.repostCount)}`);
+  if (includeMedia && trend.mediaType) lines.push(`🎞 Media:       ${trend.mediaType}`);
+  if (includeShape && trend.attentionShapeScore) lines.push(`🧲 Shape:       ${formatCount(trend.attentionShapeScore)}`);
+
+  const body = lines.join("\n");
+  return raw ? `${body}\n` : `<code>${escapeHtml(body)}</code>\n`;
 }

@@ -18,12 +18,15 @@ for (const post of posts) {
   console.log(`Name: ${post.name}`);
   console.log(`URL: ${post.sourceUrl}`);
   console.log(`Views: ${post.totalViews.toLocaleString()}`);
+  console.log(`Views/hour: ${post.viewsPerHour.toLocaleString()}`);
   console.log(`Likes: ${post.likeCount.toLocaleString()}`);
   console.log(`Reposts: ${post.repostCount.toLocaleString()}`);
-  console.log(`Replies: ${post.replyCount.toLocaleString()}`);
   console.log(`Quotes: ${post.quoteCount.toLocaleString()}`);
-  console.log(`Views/hour: ${post.viewsPerHour.toLocaleString()}`);
-  console.log(`Engagement/hour: ${post.engagementPerHour.toLocaleString()}`);
+  console.log(`Shares: ${post.shareCount.toLocaleString()}`);
+  console.log(`Shares/hour: ${post.shareVelocity.toLocaleString(undefined, { maximumFractionDigits: 1 })}`);
+  console.log(`Share rate: ${(post.shareRate * 100).toFixed(3)}%`);
+  console.log(`Quote rate: ${(post.quoteRate * 100).toFixed(1)}%`);
+  console.log(`Attention shape: ${post.attentionShapeScore.toLocaleString()}`);
   if (post.riskFlags.length > 0) {
     console.log(`Flags: ${post.riskFlags.join(", ")}`);
   }

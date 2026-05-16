@@ -6,6 +6,11 @@ export function generateLaunchBrief({ trend, trendScore, launchScore, token }) {
   const sourceUrl = getSourceUrl(trend, cleanName);
   const existingToken = token ? { ...token } : null;
   const sourceLabel = sourcePlatform === "x" ? "X" : "TikTok";
+  const socialTag = buildSocialTag({ trend, suggestedName, cleanName });
+  const sourceBacklinkText = sourcePlatform === "x"
+    ? `Launched from this viral X post: ${sourceUrl}`
+    : `Launched from this TikTok trend: ${sourceUrl}`;
+  const xLaunchPost = buildXLaunchPost({ trend, socialTag, sourceUrl });
 
   return {
     sourcePlatform,
@@ -18,6 +23,10 @@ export function generateLaunchBrief({ trend, trendScore, launchScore, token }) {
     firstTweet: `OINK spotted ${formatTrendName(trend.name)} moving through ${sourceLabel} before the market fully caught up. Watching ${suggestedName} as an attention-market candidate. $${suggestedTicker}`,
     telegramSummary: `${suggestedName} is a ${sourceLabel} attention spike with ${articleFor(launchScore.label)} ${launchScore.label} launch score (${launchScore.total}/100).`,
     imagePrompt: buildImagePrompt({ trend, suggestedName, suggestedTicker }),
+    socialTag,
+    socialTagType: "hashtag",
+    sourceBacklinkText,
+    xLaunchPost,
     riskFlags: launchScore.riskFlags || [],
     existingToken,
     launchScore,
@@ -115,4 +124,43 @@ function buildImagePrompt({ trend, suggestedName, suggestedTicker }) {
     : `Based on the trend name "${suggestedName}".`;
 
   return `Clean playful internet-native OINK logo for "${suggestedName}": ${mediaHint} Bold mascot-style mark, simple silhouette, high contrast, readable at small sizes, no text except optional $${suggestedTicker} ticker treatment.`;
+}
+
+function buildSocialTag({ trend, suggestedName, cleanName }) {
+  const base = suggestedName || cleanName || trend.name || "OINK Launch";
+  const words = splitCamelCase(base)
+    .replace(/[^a-z0-9\s]/gi, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((word) => !isWeakTagWord(word));
+
+  const tagBody = words
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join("")
+    .slice(0, 32);
+
+  if (tagBody.length < 4 || isWeakTag(`#${tagBody}`)) return "#OINKLaunch";
+  return `#${tagBody}`;
+}
+
+function buildXLaunchPost({ trend, socialTag, sourceUrl }) {
+  if (trend.sourcePlatform !== "x") return null;
+
+  return [
+    "OINK detected viral attention before a market existed.",
+    "",
+    `${socialTag} is now an attention-market candidate.`,
+    "",
+    `Source: ${sourceUrl}`,
+    "",
+    "Viral Attention → Autonomous Launch → $OINK Buybacks 🐷📡",
+  ].join("\n");
+}
+
+function isWeakTag(tag) {
+  return ["#Viral", "#Trending", "#Meme", "#Pumpfun", "#PumpFun", "#Crypto", "#Coin"].includes(tag);
+}
+
+function isWeakTagWord(word) {
+  return /^(viral|trending|meme|memecoin|pumpfun|pump|fun|crypto|coin|token|launch|ticker|contract|address|ca|100x|solana|degen|moonshot|new|the|this|that|from|with|official)$/i.test(word);
 }

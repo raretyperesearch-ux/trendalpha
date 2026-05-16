@@ -83,6 +83,18 @@ OINK sends:
 
 Launch candidate cards include the source, score, conviction, reasons, suggested ticker, launch thesis, existing-token context, risk flags, and status.
 
+### X Virality Metrics
+
+OINK’s X scanner prioritizes views and shares because reposts and quote tweets show distribution and meme remix potential. Views show reach, reposts show spread, quotes show remix pressure, and velocity shows whether the post is moving now.
+
+### X Narrative Tags
+
+For X-sourced launch candidates, OINK generates a hashtag that ties the launch back to the original viral tweet. The tag gives Telegram users a clean phrase to copy, share, and point back at the attention source.
+
+### Telegram Alerts
+
+Telegram is the first OINK terminal. X candidates, TikTok trends, launch candidates, and future market-created alerts are formatted for Telegram-first consumption.
+
 ## Dashboard
 
 Run:
@@ -98,6 +110,7 @@ The dashboard is read-only. It shows recent attention candidates and the $OINK b
 ```bash
 npm run scan
 npm run test-launch
+npm run test-launch-created
 npm run test-x
 npm run dashboard
 npm start

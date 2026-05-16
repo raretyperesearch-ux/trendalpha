@@ -73,11 +73,7 @@ export async function fetchXAttention() {
     }
   }
 
-  return posts.sort((a, b) => {
-    const aScore = (a.viewsPerHour || 0) + (a.engagementPerHour || 0) * 20;
-    const bScore = (b.viewsPerHour || 0) + (b.engagementPerHour || 0) * 20;
-    return bScore - aScore;
-  });
+  return posts.sort((a, b) => (b.attentionShapeScore || 0) - (a.attentionShapeScore || 0));
 }
 
 async function searchRecent(query) {
@@ -143,6 +139,28 @@ function normalizeTweet(tweet, usersById, mediaByKey) {
   const riskFlags = containsCryptoSaturatedLanguage(text)
     ? ["crypto_saturated_language"]
     : [];
+  const likeCount = Number(publicMetrics.like_count || 0);
+  const repostCount = Number(publicMetrics.retweet_count || 0);
+  const replyCount = Number(publicMetrics.reply_count || 0);
+  const quoteCount = Number(publicMetrics.quote_count || 0);
+  const shareCount = repostCount + quoteCount;
+  const shareVelocity = shareCount / hoursActive;
+  const repostVelocity = repostCount / hoursActive;
+  const quoteVelocity = quoteCount / hoursActive;
+  const shareRate = shareCount / Math.max(1, totalViews);
+  const quoteRate = quoteCount / Math.max(1, shareCount);
+  const likeRate = likeCount / Math.max(1, totalViews);
+  const replyRate = replyCount / Math.max(1, totalViews);
+  const cryptoSaturatedLanguage = riskFlags.includes("crypto_saturated_language");
+  const attentionShapeScore = getAttentionShapeScore({
+    viewsPerHour,
+    shareVelocity,
+    quoteVelocity,
+    repostVelocity,
+    engagementPerHour,
+    hasMedia: media.length > 0,
+    cryptoSaturatedLanguage,
+  });
 
   return {
     id: `x-${tweet.id}`,
@@ -157,13 +175,22 @@ function normalizeTweet(tweet, usersById, mediaByKey) {
     mediaType: media[0]?.type || null,
     totalViews,
     videoCount: 0,
-    likeCount: Number(publicMetrics.like_count || 0),
-    repostCount: Number(publicMetrics.retweet_count || 0),
-    replyCount: Number(publicMetrics.reply_count || 0),
-    quoteCount: Number(publicMetrics.quote_count || 0),
+    likeCount,
+    repostCount,
+    replyCount,
+    quoteCount,
+    shareCount,
+    shareVelocity,
+    repostVelocity,
+    quoteVelocity,
+    shareRate,
+    quoteRate,
+    likeRate,
+    replyRate,
     engagementCount,
     viewsPerHour,
     engagementPerHour,
+    attentionShapeScore,
     rank: null,
     rankChange: 0,
     rankChangeType: null,
@@ -172,7 +199,7 @@ function normalizeTweet(tweet, usersById, mediaByKey) {
     discoveredAt: new Date().toISOString(),
     earliestVideo: Math.floor(new Date(tweet.created_at).getTime() / 1000),
     riskFlags,
-    cryptoSaturatedLanguage: riskFlags.includes("crypto_saturated_language"),
+    cryptoSaturatedLanguage,
   };
 }
 
@@ -187,8 +214,32 @@ function passesFilters(post, tweet) {
   return (
     post.totalViews >= config.x.minViews ||
     post.likeCount >= config.x.minLikes ||
-    post.engagementPerHour >= Math.max(250, Math.round(config.x.minLikes / 3))
+    post.shareCount >= config.x.minShares ||
+    post.shareVelocity >= config.x.minShareVelocity ||
+    post.viewsPerHour >= config.x.minViewsPerHour
   );
+}
+
+function getAttentionShapeScore({
+  viewsPerHour,
+  shareVelocity,
+  quoteVelocity,
+  repostVelocity,
+  engagementPerHour,
+  hasMedia,
+  cryptoSaturatedLanguage,
+}) {
+  let score =
+    viewsPerHour +
+    shareVelocity * 250 +
+    quoteVelocity * 400 +
+    repostVelocity * 200 +
+    engagementPerHour * 25;
+
+  if (hasMedia) score *= 1.15;
+  if (cryptoSaturatedLanguage) score *= 0.7;
+
+  return Math.round(score);
 }
 
 function buildTitle(text, hasMedia) {

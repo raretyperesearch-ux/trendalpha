@@ -18,8 +18,8 @@ export async function fetchAllAttentionSources() {
   const deduped = dedupeById(combined);
 
   return deduped.sort((a, b) => {
-    const aVelocity = (a.viewsPerHour || 0) + (a.engagementPerHour || 0) * 20;
-    const bVelocity = (b.viewsPerHour || 0) + (b.engagementPerHour || 0) * 20;
+    const aVelocity = a.attentionShapeScore || (a.viewsPerHour || 0) + (a.engagementPerHour || 0) * 20;
+    const bVelocity = b.attentionShapeScore || (b.viewsPerHour || 0) + (b.engagementPerHour || 0) * 20;
     return bVelocity - aVelocity;
   });
 }
