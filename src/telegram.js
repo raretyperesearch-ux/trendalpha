@@ -231,7 +231,7 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false, mode = "r
   }
   msg += `${trend.sourcePlatform === "x" ? "🐷" : conviction.emoji} <b>${trend.sourcePlatform === "x" ? "OINK X ATTENTION SIGNAL" : "OINK ATTENTION ALERT"}</b>\n\n`;
   if (trend.sourcePlatform === "x" && trend.launchWorthinessScore !== undefined) {
-    msg = msg.replace("OINK X ATTENTION SIGNAL", "OINK MARKET FORMATION SIGNAL");
+    msg = msg.replace("OINK X ATTENTION SIGNAL", "OINK MARKET PHASE");
   }
 
   // Score
@@ -250,6 +250,15 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false, mode = "r
     msg += `Momentum: <b>${escapeHtml(formatLabel(trend.momentumTrend || "stable"))}</b>\n`;
     msg += `Discovery Lane: <b>${escapeHtml(trend.discoveryLane || "broad_media_stream")}</b>\n`;
     if (trend.launchWorthinessScore !== undefined) {
+      msg += `<b>Market Phase:</b>\n`;
+      msg += `Narrative Phase: <b>${escapeHtml(formatLabel(trend.narrativePhase || "forming"))}</b>\n`;
+      msg += `Momentum: <b>${escapeHtml(trend.momentumState || formatLabel(trend.momentumTrend || "stable"))}</b>\n`;
+      msg += `Cross-Community Spread: <b>${escapeHtml(trend.crossCommunityTrend || "LOW")}</b>\n`;
+      msg += `Swarm Pressure: <b>${escapeHtml(labelPressure(trend.swarmPressure))}</b>\n`;
+      msg += `Saturation Pressure: <b>${Number(trend.saturationPressure || 0)}/100</b>\n`;
+      msg += `Launch Readiness: <b>${Number(trend.launchReadiness || trend.launchWorthinessScore || 0)}/100</b>\n`;
+      msg += `Launch Window: <b>${escapeHtml(trend.launchWindow || "WATCH")}</b>\n`;
+      msg += `Ideal Timing: <b>${escapeHtml(formatLabel(trend.idealLaunchTiming || "watch"))}</b>\n`;
       msg += `Launch Worthiness: <b>${trend.launchWorthinessScore}/100</b>\n`;
       msg += `Archetype: <b>${escapeHtml(formatLabel(trend.marketArchetype || "trendwave"))}</b>\n`;
       msg += `Narrative Half-Life: <b>${escapeHtml(formatLabel(trend.narrativeHalfLifeEstimate || "flash trend"))}</b>\n`;
@@ -566,8 +575,13 @@ export function formatNarrativeClusterAlert(cluster, { mode = "rich" } = {}) {
   msg += `Entity: <b>${escapeHtml(cluster.canonicalEntity)}</b>\n`;
   msg += `State: <b>${escapeHtml(formatLabel(cluster.lifecycleState))}</b>\n`;
   msg += `Momentum: <b>${escapeHtml(formatLabel(cluster.momentumTrend))}</b>\n`;
+  msg += `Launch Readiness: <b>${cluster.launchReadiness || cluster.launchWorthinessScore}/100</b>\n`;
+  msg += `Launch Window: <b>${escapeHtml(cluster.launchWindow || "WATCH")}</b>\n`;
+  msg += `Ideal Timing: <b>${escapeHtml(formatLabel(cluster.idealLaunchTiming || "watch"))}</b>\n`;
+  msg += `Saturation Pressure: <b>${cluster.saturationPressure || 0}/100</b>\n`;
+  msg += `Swarm Pressure: <b>${escapeHtml(labelPressure(cluster.swarmPressure))}</b>\n`;
   msg += `Archetype: <b>${escapeHtml(formatLabel(cluster.archetype))}</b>\n`;
-  msg += `Cross-Community Spread: <b>${escapeHtml(labelSpread(cluster.communitySpreadScore))}</b>\n\n`;
+  msg += `Cross-Community Spread: <b>${escapeHtml(cluster.crossCommunityTrend || labelSpread(cluster.communitySpreadScore))}</b>\n\n`;
 
   msg += `<code>`;
   msg += `Posts Tracked: ${formatCount(cluster.relatedPosts?.length || 0)}\n`;
@@ -575,6 +589,8 @@ export function formatNarrativeClusterAlert(cluster, { mode = "rich" } = {}) {
   msg += `Remix Count:   ${formatCount(cluster.remixCount)}\n`;
   msg += `Momentum:      ${formatCount(cluster.totalMomentum)}\n`;
   msg += `Persistence:   ${cluster.propagationPersistence}/100\n`;
+  msg += `Quote Expand:  ${cluster.quoteChainExpansion || 0}/100\n`;
+  msg += `Remix Growth:  ${cluster.remixGrowthRate || 0}/100\n`;
   msg += `Worthiness:    ${cluster.launchWorthinessScore}/100`;
   msg += `</code>\n\n`;
 
@@ -615,6 +631,13 @@ function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBr
   if (isX) {
     if (trend.launchWorthinessScore !== undefined) {
       msg += `<b>Market Formation:</b>\n`;
+      msg += `Narrative Phase: <b>${escapeHtml(formatLabel(trend.narrativePhase || "forming"))}</b>\n`;
+      msg += `Momentum: <b>${escapeHtml(trend.momentumState || formatLabel(trend.momentumTrend || "stable"))}</b>\n`;
+      msg += `Cross-Community Spread: <b>${escapeHtml(trend.crossCommunityTrend || "LOW")}</b>\n`;
+      msg += `Swarm Pressure: <b>${escapeHtml(labelPressure(trend.swarmPressure))}</b>\n`;
+      msg += `Launch Readiness: <b>${Number(trend.launchReadiness || trend.launchWorthinessScore || 0)}/100</b>\n`;
+      msg += `Launch Window: <b>${escapeHtml(trend.launchWindow || "WATCH")}</b>\n`;
+      msg += `Ideal Timing: <b>${escapeHtml(formatLabel(trend.idealLaunchTiming || "watch"))}</b>\n`;
       msg += `Launch Worthiness: <b>${trend.launchWorthinessScore}/100</b>\n`;
       msg += `Archetype: <b>${escapeHtml(formatLabel(trend.marketArchetype || "trendwave"))}</b>\n`;
       msg += `Narrative Half-Life: <b>${escapeHtml(formatLabel(trend.narrativeHalfLifeEstimate || "flash trend"))}</b>\n`;
@@ -824,6 +847,13 @@ function labelSpread(score) {
   const value = Number(score || 0);
   if (value >= 220) return "HIGH";
   if (value >= 120) return "MEDIUM";
+  return "LOW";
+}
+
+function labelPressure(score) {
+  const value = Number(score || 0);
+  if (value >= 70) return "HIGH";
+  if (value >= 40) return "MEDIUM";
   return "LOW";
 }
 

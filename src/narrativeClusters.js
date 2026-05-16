@@ -1,3 +1,5 @@
+import { evaluateNarrativePhase } from "./narrativePhase.js";
+
 const STOP_WORDS = new Set([
   "the", "this", "that", "with", "from", "have", "they", "what", "when",
   "where", "just", "like", "will", "your", "their", "about", "there", "been",
@@ -39,6 +41,23 @@ export class NarrativeCluster {
     this.quoteVelocityDelta = fields.quoteVelocityDelta || 0;
     this.accelerationDelta = fields.accelerationDelta || 0;
     this.viralShapeReason = fields.viralShapeReason || "";
+    this.saturationPressure = fields.saturationPressure || 0;
+    this.launchReadiness = fields.launchReadiness || 0;
+    this.phaseRecommendation = fields.phaseRecommendation || fields.recommendation || "WATCH";
+    this.crossCommunityTrend = fields.crossCommunityTrend || "LOW";
+    this.swarmPressure = fields.swarmPressure || 0;
+    this.launchWindow = fields.launchWindow || "WATCH";
+    this.idealLaunchTiming = fields.idealLaunchTiming || "watch";
+    this.accelerationSlope = fields.accelerationSlope || 0;
+    this.momentumPersistence = fields.momentumPersistence || 0;
+    this.quoteChainExpansion = fields.quoteChainExpansion || 0;
+    this.propagationHalfLife = fields.propagationHalfLife || "short";
+    this.remixGrowthRate = fields.remixGrowthRate || 0;
+    this.adaptiveLaunchThreshold = fields.adaptiveLaunchThreshold || 78;
+    this.crossCommunityBreakoutTiming = fields.crossCommunityBreakoutTiming || "none";
+    this.accelerationInflectionPoint = fields.accelerationInflectionPoint || "stable";
+    this.missedWindow = Boolean(fields.missedWindow);
+    this.earlyConviction = Boolean(fields.earlyConviction);
   }
 }
 
@@ -75,9 +94,13 @@ export function buildNarrativeClusters(posts = [], previousSnapshots = []) {
 export function getStrongNarrativeClusters(clusters = []) {
   return clusters.filter((cluster) => {
     if (cluster.copycatSwarm && cluster.launchWorthinessScore < 86) return false;
-    if (cluster.lifecycleState === "reigniting") return cluster.launchWorthinessScore >= 68;
-    if (["accelerating", "compounding"].includes(cluster.lifecycleState)) return cluster.launchWorthinessScore >= 72;
-    return cluster.launchWorthinessScore >= 82;
+    if (cluster.lifecycleState === "saturated" || cluster.lifecycleState === "decaying") return false;
+    if (cluster.launchWindow === "SATURATED" || cluster.launchWindow === "LATE_STAGE") return false;
+    if (cluster.lifecycleState === "reigniting") return cluster.launchReadiness >= 68;
+    if (cluster.launchWindow === "PRIME_WINDOW") return cluster.launchReadiness >= 72;
+    if (cluster.launchWindow === "FORMING_WINDOW") return cluster.launchReadiness >= 70;
+    if (["forming", "accelerating", "breakout"].includes(cluster.lifecycleState)) return cluster.launchReadiness >= 72;
+    return cluster.launchReadiness >= 82;
   });
 }
 
@@ -109,6 +132,23 @@ export function serializeNarrativeCluster(cluster) {
     shareVelocityDelta: cluster.shareVelocityDelta,
     quoteVelocityDelta: cluster.quoteVelocityDelta,
     accelerationDelta: cluster.accelerationDelta,
+    saturationPressure: cluster.saturationPressure,
+    launchReadiness: cluster.launchReadiness,
+    phaseRecommendation: cluster.phaseRecommendation,
+    crossCommunityTrend: cluster.crossCommunityTrend,
+    swarmPressure: cluster.swarmPressure,
+    launchWindow: cluster.launchWindow,
+    idealLaunchTiming: cluster.idealLaunchTiming,
+    accelerationSlope: cluster.accelerationSlope,
+    momentumPersistence: cluster.momentumPersistence,
+    quoteChainExpansion: cluster.quoteChainExpansion,
+    propagationHalfLife: cluster.propagationHalfLife,
+    remixGrowthRate: cluster.remixGrowthRate,
+    adaptiveLaunchThreshold: cluster.adaptiveLaunchThreshold,
+    crossCommunityBreakoutTiming: cluster.crossCommunityBreakoutTiming,
+    accelerationInflectionPoint: cluster.accelerationInflectionPoint,
+    missedWindow: cluster.missedWindow,
+    earlyConviction: cluster.earlyConviction,
   };
 }
 
@@ -177,6 +217,30 @@ function finalizeCluster(cluster, previousById) {
   cluster.momentumTrend = classifyClusterMomentum(cluster, previous);
   cluster.archetype = chooseClusterArchetype(cluster);
   cluster.launchWorthinessScore = scoreClusterLaunchWorthiness(cluster);
+  const phase = evaluateNarrativePhase({
+    ...cluster,
+    lifecycleState: cluster.lifecycleState,
+    marketStatus: cluster.marketStatus,
+  });
+  cluster.lifecycleState = phase.narrativePhase;
+  cluster.momentumTrend = phase.momentumState.toLowerCase();
+  cluster.saturationPressure = phase.saturationPressure;
+  cluster.launchReadiness = phase.launchReadiness;
+  cluster.phaseRecommendation = phase.phaseRecommendation;
+  cluster.crossCommunityTrend = phase.crossCommunityTrend;
+  cluster.swarmPressure = phase.swarmPressure;
+  cluster.launchWindow = phase.launchWindow;
+  cluster.idealLaunchTiming = phase.idealLaunchTiming;
+  cluster.accelerationSlope = phase.accelerationSlope;
+  cluster.momentumPersistence = phase.momentumPersistence;
+  cluster.quoteChainExpansion = phase.quoteChainExpansion;
+  cluster.propagationHalfLife = phase.propagationHalfLife;
+  cluster.remixGrowthRate = phase.remixGrowthRate;
+  cluster.adaptiveLaunchThreshold = phase.adaptiveLaunchThreshold;
+  cluster.crossCommunityBreakoutTiming = phase.crossCommunityBreakoutTiming;
+  cluster.accelerationInflectionPoint = phase.accelerationInflectionPoint;
+  cluster.missedWindow = phase.missedWindow;
+  cluster.earlyConviction = phase.earlyConviction;
   cluster.recommendation = getClusterRecommendation(cluster);
   cluster.viralShapeReason = getClusterReason(cluster);
 
@@ -331,9 +395,10 @@ function scoreClusterLaunchWorthiness(cluster) {
 
 function getClusterRecommendation(cluster) {
   if (cluster.copycatSwarm || cluster.lifecycleState === "saturated" || cluster.marketStatus === "canonical") return "DO_NOT_LAUNCH";
-  if (cluster.launchWorthinessScore >= 88 && ["reigniting", "compounding", "accelerating"].includes(cluster.lifecycleState)) return "BREAKOUT_FORMING";
-  if (cluster.launchWorthinessScore >= 78) return "HIGH_CONVICTION";
-  if (cluster.launchWorthinessScore >= 62) return "EARLY_OPPORTUNITY";
+  if (cluster.phaseRecommendation) return cluster.phaseRecommendation;
+  if (cluster.launchReadiness >= 82 && ["reigniting", "breakout", "accelerating"].includes(cluster.lifecycleState)) return "HIGH_CONVICTION";
+  if (cluster.launchReadiness >= 75) return "PREPARE_LAUNCH";
+  if (cluster.launchReadiness >= 62) return "WATCH";
   if (cluster.launchWorthinessScore >= 45) return "WATCH";
   return "DO_NOT_LAUNCH";
 }
@@ -541,7 +606,8 @@ function logCluster(cluster) {
     `   🧠 Cluster ${cluster.clusterId}: state=${cluster.lifecycleState} ` +
     `momentum=${cluster.momentumTrend} posts=${cluster.relatedPosts.length} ` +
     `accounts=${cluster.relatedAccounts.length} attention=${cluster.totalAttention.toLocaleString()} ` +
-    `persistence=${cluster.propagationPersistence}/100 worthiness=${cluster.launchWorthinessScore}/100 ` +
+    `persistence=${cluster.propagationPersistence}/100 readiness=${cluster.launchReadiness}/100 ` +
+    `saturation=${cluster.saturationPressure}/100 ` +
     `swarm=${cluster.copycatSwarm ? "yes" : "no"}`
   );
 }

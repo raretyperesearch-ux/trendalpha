@@ -1,4 +1,5 @@
 import { getHoursActive, getViewsPerHour } from "./tiktok.js";
+import { evaluateNarrativePhase } from "./narrativePhase.js";
 
 const GENERIC_TERMS = new Set([
   "fyp",
@@ -90,29 +91,64 @@ export function scoreLaunchOpportunity(trend, token = null, previousSnapshot = n
     risk,
   };
 
-  const total = Math.max(
+  const phase = trend.sourcePlatform === "x"
+    ? evaluateNarrativePhase({ ...trend, launchWorthinessScore: trend.launchWorthinessScore || 0 })
+    : null;
+  const total = Math.round(Math.max(
     0,
-    Math.min(100, getLaunchTotal({ trend, breakdown }))
-  );
+    Math.min(100, getLaunchTotal({ trend, breakdown, phase }))
+  ));
 
   return {
     total,
-    label: getLabel(total),
+    label: getLabel(total, phase),
     breakdown,
+    narrativePhase: phase?.narrativePhase || null,
+    phaseZone: phase?.phaseZone || null,
+    momentumState: phase?.momentumState || null,
+    crossCommunityTrend: phase?.crossCommunityTrend || null,
+    swarmPressure: phase?.swarmPressure ?? null,
+    saturationPressure: phase?.saturationPressure ?? null,
+    accelerationSlope: phase?.accelerationSlope ?? null,
+    momentumPersistence: phase?.momentumPersistence ?? null,
+    quoteChainExpansion: phase?.quoteChainExpansion ?? null,
+    propagationHalfLife: phase?.propagationHalfLife ?? null,
+    remixGrowthRate: phase?.remixGrowthRate ?? null,
+    idealLaunchTiming: phase?.idealLaunchTiming || null,
+    launchWindow: phase?.launchWindow || null,
+    adaptiveLaunchThreshold: phase?.adaptiveLaunchThreshold ?? null,
+    quoteExplosionWindow: phase?.quoteExplosionWindow ?? null,
+    remixExpansionWindow: phase?.remixExpansionWindow ?? null,
+    crossCommunityBreakoutTiming: phase?.crossCommunityBreakoutTiming || null,
+    accelerationInflectionPoint: phase?.accelerationInflectionPoint || null,
+    missedWindow: phase?.missedWindow ?? null,
+    earlyConviction: phase?.earlyConviction ?? null,
+    launchReadiness: phase?.launchReadiness ?? null,
+    phaseRecommendation: phase?.phaseRecommendation || null,
+    phaseReason: phase?.phaseReason || null,
     launchWorthinessScore: trend.launchWorthinessScore || null,
     launchRecommendation: trend.launchRecommendation || null,
-    reasons: getReasons({ trend, token, viewsPerHour, isNewEntry, breakdown, riskFlags }),
+    reasons: getReasons({ trend, token, viewsPerHour, isNewEntry, breakdown, riskFlags, phase }),
     riskFlags,
   };
 }
 
-function getLaunchTotal({ trend, breakdown }) {
+function getLaunchTotal({ trend, breakdown, phase }) {
   const base = Object.values(breakdown).reduce((sum, value) => sum + value, 0);
   if (trend.sourcePlatform !== "x" || !Number.isFinite(trend.launchWorthinessScore)) return base;
-  const blended = base * 0.68 + trend.launchWorthinessScore * 0.32;
+  const readiness = Number(phase?.launchReadiness ?? trend.launchReadiness ?? trend.launchWorthinessScore);
+  let blended = base * 0.48 + readiness * 0.34 + trend.launchWorthinessScore * 0.18;
+
+  if (phase?.narrativePhase === "forming" && readiness >= 75) blended = Math.max(blended, 75);
+  if (phase?.narrativePhase === "accelerating" && readiness >= 78) blended = Math.max(blended, 82);
+  if (phase?.narrativePhase === "breakout" && readiness >= 82) blended = Math.max(blended, 84);
+  if (phase?.narrativePhase === "reigniting") blended += 4;
+  if (phase?.narrativePhase === "saturated") blended = Math.min(blended, 72);
+  if (phase?.narrativePhase === "decaying") blended = Math.min(blended, 58);
+  if ((phase?.saturationPressure || 0) >= 70) blended -= 12;
+  if ((phase?.swarmPressure || 0) >= 60) blended -= 10;
   if (trend.launchRecommendation === "DO_NOT_LAUNCH") return Math.min(blended, 54);
-  if (trend.launchRecommendation === "WATCH") return Math.min(blended, 64);
-  if (trend.launchRecommendation === "BREAKOUT_FORMING") return Math.max(blended, 82);
+  if (trend.launchRecommendation === "WATCH") return Math.min(blended, 68);
   return blended;
 }
 
@@ -228,9 +264,9 @@ function scoreRisk(riskFlags) {
   return 0;
 }
 
-function getReasons({ trend, token, viewsPerHour, isNewEntry, breakdown, riskFlags }) {
+function getReasons({ trend, token, viewsPerHour, isNewEntry, breakdown, riskFlags, phase }) {
   if (trend.sourcePlatform === "x") {
-    return getXReasons({ trend, token, viewsPerHour, breakdown, riskFlags });
+    return getXReasons({ trend, token, viewsPerHour, breakdown, riskFlags, phase });
   }
 
   const reasons = [];
@@ -333,7 +369,7 @@ function scoreXVisualStrength({ name, words, trend, riskFlags = [] }) {
   return clamp(score, 0, 10);
 }
 
-function getXReasons({ trend, token, viewsPerHour, breakdown, riskFlags }) {
+function getXReasons({ trend, token, viewsPerHour, breakdown, riskFlags, phase }) {
   const reasons = [];
 
   if (riskFlags.length > 0) {
@@ -344,8 +380,21 @@ function getXReasons({ trend, token, viewsPerHour, breakdown, riskFlags }) {
     reasons.push(`High X engagement velocity at ${formatCount(trend.engagementPerHour || 0)} engagements/hour.`);
   }
 
-  if (trend.launchWorthinessScore >= 75) {
+  if (phase?.narrativePhase) {
+    reasons.push(`Narrative phase is ${phase.narrativePhase}; launch window is ${phase.launchWindow}; readiness is ${phase.launchReadiness}/100.`);
+  } else if (trend.launchWorthinessScore >= 75) {
     reasons.push(`Launch-worthiness is ${trend.launchWorthinessScore}/100 with ${trend.launchRecommendation} recommendation.`);
+  }
+
+  if (phase?.narrativePhase === "forming" && phase.saturationPressure < 45) {
+    reasons.push("Early conviction: identity is forming before saturation pressure gets high.");
+  }
+
+  if (phase?.quoteExplosionWindow) reasons.push("Quote-chain expansion window is active.");
+  if (phase?.remixExpansionWindow) reasons.push("Remix expansion is still moving before copycat pressure dominates.");
+
+  if ((phase?.saturationPressure || 0) >= 60) {
+    reasons.push(`Saturation pressure is elevated at ${phase.saturationPressure}/100; review timing carefully.`);
   }
 
   if (trend.marketArchetype) {
@@ -412,7 +461,10 @@ function hasDistinctiveWord(words) {
   return words.some((word) => word.length >= 4 && !GENERIC_TERMS.has(word));
 }
 
-function getLabel(total) {
+function getLabel(total, phase = null) {
+  if (phase?.phaseRecommendation === "DO_NOT_LAUNCH") return "PHASE_REJECT";
+  if (phase?.phaseRecommendation === "PREPARE_LAUNCH") return "PREPARE_LAUNCH";
+  if (phase?.narrativePhase === "saturated" && total >= 75) return "SATURATION_REVIEW";
   if (total >= 85) return "EXTREME";
   if (total >= 75) return "HIGH";
   if (total >= 65) return "MEDIUM";

@@ -1,3 +1,5 @@
+import { evaluateNarrativePhase } from "./narrativePhase.js";
+
 const ANIMAL_TERMS = [
   "cat", "dog", "bird", "duck", "goose", "squirrel", "bear", "frog", "monkey",
   "horse", "penguin", "shark", "fish", "hamster", "rat", "mouse",
@@ -81,12 +83,53 @@ export function computeLaunchWorthiness(post, { token = null } = {}) {
     identityFormationPotential,
     crossCommunityPersistence,
   });
-  const recommendation = getLaunchRecommendation({ launchWorthinessScore, post, copycatSwarm, hasCanonicalMarket });
+  const phase = evaluateNarrativePhase({
+    ...post,
+    launchWorthinessScore,
+    communityFormationScore,
+    remixabilityLabel: labelStrength(remixability),
+    marketArchetype,
+    copycatSwarm,
+    unclaimedAttention: !hasCanonicalMarket && !copycatSwarm,
+  });
+  const recommendation = getLaunchRecommendation({
+    launchWorthinessScore,
+    post,
+    copycatSwarm,
+    hasCanonicalMarket,
+    phase,
+  });
 
   return {
     launchWorthinessScore,
     launchWorthinessBreakdown: breakdown,
     launchRecommendation: recommendation,
+    narrativePhase: phase.narrativePhase,
+    phaseLabel: phase.phaseLabel,
+    phaseZone: phase.phaseZone,
+    momentumState: phase.momentumState,
+    crossCommunityTrend: phase.crossCommunityTrend,
+    swarmPressure: phase.swarmPressure,
+    saturationPressure: phase.saturationPressure,
+    accelerationScore: phase.accelerationScore,
+    identityFormationScore: phase.identityFormationScore,
+    accelerationSlope: phase.accelerationSlope,
+    momentumPersistence: phase.momentumPersistence,
+    quoteChainExpansion: phase.quoteChainExpansion,
+    propagationHalfLife: phase.propagationHalfLife,
+    remixGrowthRate: phase.remixGrowthRate,
+    idealLaunchTiming: phase.idealLaunchTiming,
+    launchWindow: phase.launchWindow,
+    adaptiveLaunchThreshold: phase.adaptiveLaunchThreshold,
+    quoteExplosionWindow: phase.quoteExplosionWindow,
+    remixExpansionWindow: phase.remixExpansionWindow,
+    crossCommunityBreakoutTiming: phase.crossCommunityBreakoutTiming,
+    accelerationInflectionPoint: phase.accelerationInflectionPoint,
+    missedWindow: phase.missedWindow,
+    earlyConviction: phase.earlyConviction,
+    launchReadiness: phase.launchReadiness,
+    phaseRecommendation: phase.phaseRecommendation,
+    phaseReason: phase.phaseReason,
     marketArchetype,
     narrativeHalfLifeEstimate,
     communityFormationScore,
@@ -249,10 +292,13 @@ function getCommunityFormationScore({ post, remixability, identityFormationPoten
   );
 }
 
-function getLaunchRecommendation({ launchWorthinessScore, post, copycatSwarm, hasCanonicalMarket }) {
+function getLaunchRecommendation({ launchWorthinessScore, post, copycatSwarm, hasCanonicalMarket, phase }) {
   if (copycatSwarm || hasCanonicalMarket || post.viralShape === "likely_bot_amplified" || post.saturationRisk >= 75) {
     return "DO_NOT_LAUNCH";
   }
+  if (phase?.phaseRecommendation === "DO_NOT_LAUNCH") return "DO_NOT_LAUNCH";
+  if (phase?.phaseRecommendation === "PREPARE_LAUNCH") return "PREPARE_LAUNCH";
+  if (phase?.phaseRecommendation === "HIGH_CONVICTION") return "HIGH_CONVICTION";
   if (launchWorthinessScore >= 88 && (post.momentumTrend === "rising" || post.momentumTrend === "reigniting")) {
     return "BREAKOUT_FORMING";
   }

@@ -31,7 +31,9 @@ if (clusters.length > 0) {
     console.log(
       `- ${cluster.canonicalEntity}: ${cluster.lifecycleState} | ` +
       `${cluster.relatedPosts.length} posts | ${cluster.relatedAccounts.length} accounts | ` +
-      `remix ${formatCount(cluster.remixCount)} | worthiness ${cluster.launchWorthinessScore}/100 | ` +
+      `remix ${formatCount(cluster.remixCount)} | readiness ${cluster.launchReadiness}/100 | ` +
+      `window ${cluster.launchWindow} | timing ${cluster.idealLaunchTiming} | ` +
+      `saturation ${cluster.saturationPressure}/100 | ` +
       `${cluster.recommendation}`
     );
   }
@@ -47,7 +49,7 @@ for (const trend of trends.slice(0, MAX_PREVIEW)) {
     launchScore,
     token: null,
   });
-  const isLaunchCandidate = launchScore.total >= config.launch.minLaunchScore;
+  const isLaunchCandidate = qualifiesForLaunchReview(launchScore);
 
   console.log("=".repeat(80));
   console.log(`${trend.sourcePlatform === "x" ? "X" : "TikTok"}: ${trend.name}`);
@@ -56,6 +58,10 @@ for (const trend of trends.slice(0, MAX_PREVIEW)) {
     console.log(`Author: @${trend.author}`);
     console.log(`Views/hr: ${formatCount(trend.viewsPerHour)} | Shares/hr: ${formatCount(trend.shareVelocity)} | Quotes: ${formatCount(trend.quoteCount)}`);
     console.log(`Viral Shape: ${trend.viralShape} | Momentum: ${trend.momentumTrend} | Lane: ${trend.discoveryLane}`);
+    console.log(`Narrative Phase: ${trend.narrativePhase} | Launch Readiness: ${trend.launchReadiness}/100 | Saturation: ${trend.saturationPressure}/100`);
+    console.log(`Launch Window: ${trend.launchWindow} | Timing: ${trend.idealLaunchTiming} | Adaptive Threshold: ${trend.adaptiveLaunchThreshold}`);
+    console.log(`Acceleration Slope: ${trend.accelerationSlope}/100 | Quote Expansion: ${trend.quoteChainExpansion}/100 | Remix Growth: ${trend.remixGrowthRate}/100`);
+    console.log(`Cross-Community: ${trend.crossCommunityTrend} | Breakout Timing: ${trend.crossCommunityBreakoutTiming} | Swarm Pressure: ${trend.swarmPressure}/100 | Phase Rec: ${trend.phaseRecommendation}`);
     console.log(`Attention Momentum: ${formatCount(trend.attentionMomentum)} | Shape: ${formatCount(trend.attentionShapeScore)}`);
     console.log(`Quote Explosion: ${trend.quoteExplosion ? "yes" : "no"} | Propagation Ratio: ${Number(trend.propagationRatio || 0).toFixed(3)}`);
     console.log(`Launch Worthiness: ${trend.launchWorthinessScore}/100 | Archetype: ${trend.marketArchetype} | Recommendation: ${trend.launchRecommendation}`);
@@ -64,6 +70,9 @@ for (const trend of trends.slice(0, MAX_PREVIEW)) {
   }
   console.log(`Trend Score: ${trendScore.total}/100`);
   console.log(`Launch Score: ${launchScore.total}/100 (${launchScore.label})`);
+  if (launchScore.narrativePhase) {
+    console.log(`Phase: ${launchScore.narrativePhase} | Readiness: ${launchScore.launchReadiness}/100 | Rec: ${launchScore.phaseRecommendation}`);
+  }
   console.log(`Would Send: ${isLaunchCandidate ? "Launch candidate card" : "Regular attention alert if score threshold is met"}`);
   console.log(`Suggested Market: ${launchBrief.suggestedName} ($${launchBrief.suggestedTicker})`);
   console.log(`Narrative Tag: ${launchBrief.socialTag}`);
@@ -74,4 +83,17 @@ for (const trend of trends.slice(0, MAX_PREVIEW)) {
   if (launchScore.riskFlags.length > 0) {
     console.log(`Risk Flags: ${launchScore.riskFlags.join(", ")}`);
   }
+}
+
+function qualifiesForLaunchReview(launchScore) {
+  if (!launchScore) return false;
+  if (launchScore.phaseRecommendation === "DO_NOT_LAUNCH") return false;
+  if (launchScore.narrativePhase === "saturated" || launchScore.narrativePhase === "decaying") return false;
+  if (launchScore.launchWindow === "SATURATED" || launchScore.launchWindow === "LATE_STAGE") return false;
+  if (launchScore.launchWindow === "PRIME_WINDOW") return launchScore.launchReadiness >= (launchScore.adaptiveLaunchThreshold || 75);
+  if (launchScore.launchWindow === "FORMING_WINDOW") return launchScore.launchReadiness >= Math.min(75, launchScore.adaptiveLaunchThreshold || 75);
+  if (["PREPARE_LAUNCH", "HIGH_CONVICTION", "BREAKOUT_FORMING"].includes(launchScore.phaseRecommendation)) {
+    return launchScore.launchReadiness >= 75 || launchScore.total >= 75;
+  }
+  return launchScore.total >= config.launch.minLaunchScore;
 }

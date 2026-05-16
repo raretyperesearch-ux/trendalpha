@@ -136,7 +136,7 @@ async function main() {
       ? scoreLaunchOpportunity(trend, null, prevSnapshot)
       : null;
     const meetsThreshold = isNewEntry ? score.total >= 50 : score.total >= config.scan.minScore;
-    const mayQualifyForLaunch = earlyLaunchScore?.total >= config.launch.minLaunchScore;
+    const mayQualifyForLaunch = qualifiesForLaunchReview(earlyLaunchScore);
     if (meetsThreshold || mayQualifyForLaunch) {
       // Cap alerts per scan
       if (alertsSent >= MAX_ALERTS_PER_SCAN) {
@@ -170,7 +170,7 @@ async function main() {
         await sleep(DELAY_BETWEEN_ALERTS_MS);
       }
 
-      if (launchScore?.total >= config.launch.minLaunchScore) {
+      if (qualifiesForLaunchReview(launchScore)) {
         const launchBrief = generateLaunchBrief({
           trend,
           trendScore: score,
@@ -262,10 +262,27 @@ function logXPropagationSnapshot(trend) {
 function logLaunchWorthiness(trend) {
   console.log(
     `   🧠 Launch worthiness: score=${trend.launchWorthinessScore}/100 ` +
+    `phase=${trend.narrativePhase || "forming"} readiness=${trend.launchReadiness || trend.launchWorthinessScore}/100 ` +
+    `window=${trend.launchWindow || "WATCH"} timing=${trend.idealLaunchTiming || "watch"} ` +
+    `quoteExpansion=${trend.quoteChainExpansion || 0}/100 remixGrowth=${trend.remixGrowthRate || 0}/100 ` +
+    `saturation=${trend.saturationPressure || 0}/100 ` +
     `archetype=${trend.marketArchetype} halfLife=${trend.narrativeHalfLifeEstimate} ` +
     `remix=${trend.remixabilityLabel} community=${trend.communityFormationLabel} ` +
     `copycatSwarm=${trend.copycatSwarm ? "yes" : "no"} recommendation=${trend.launchRecommendation}`
   );
+}
+
+function qualifiesForLaunchReview(launchScore) {
+  if (!launchScore) return false;
+  if (launchScore.phaseRecommendation === "DO_NOT_LAUNCH") return false;
+  if (launchScore.narrativePhase === "saturated" || launchScore.narrativePhase === "decaying") return false;
+  if (launchScore.launchWindow === "SATURATED" || launchScore.launchWindow === "LATE_STAGE") return false;
+  if (launchScore.launchWindow === "PRIME_WINDOW") return launchScore.launchReadiness >= (launchScore.adaptiveLaunchThreshold || 75);
+  if (launchScore.launchWindow === "FORMING_WINDOW") return launchScore.launchReadiness >= Math.min(75, launchScore.adaptiveLaunchThreshold || 75);
+  if (["PREPARE_LAUNCH", "HIGH_CONVICTION", "BREAKOUT_FORMING"].includes(launchScore.phaseRecommendation)) {
+    return launchScore.launchReadiness >= 75 || launchScore.total >= 75;
+  }
+  return launchScore.total >= config.launch.minLaunchScore;
 }
 
 main().catch(console.error);

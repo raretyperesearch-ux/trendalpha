@@ -11,7 +11,7 @@
         OINK
 ```
 
-**OINK is an autonomous attention-layer engine that models narrative formation and propagation across the internet.**
+**OINK is an autonomous attention-layer engine that detects optimal internet-native market formation windows.**
 
 OINK was formerly TrendAlpha. TrendAlpha proved the first idea: internet trends can become market narratives before most people notice them. OINK takes the next step: it watches viral attention across social platforms, scores whether that attention could become a market, generates launch briefs, and prepares candidates for human review.
 
@@ -65,14 +65,29 @@ Generic terms like `law`, `cat`, `ai`, `dog`, `base`, `meme`, `coin`, `official`
 
 OINK does not assume every viral post deserves a market. It evaluates whether attention can form a durable market identity using narrative clarity, repeatability, remixability, mascot potential, symbolic density, phrase stickiness, identity formation, cross-community persistence, propagation persistence, and meme mutation potential.
 
+OINK optimizes for early market formation, not maximum saturation visibility. A 90+ viral score can mean the internet has already fully discovered the narrative, so OINK now models phase and saturation pressure instead of treating the highest static score as automatically best.
+
 Market formation outputs include:
 
 - **Launch worthiness score**: whether attention is suitable for autonomous market creation.
+- **Narrative phase**: `emerging`, `forming`, `accelerating`, `breakout`, `saturated`, `decaying`, `dormant`, or `reigniting`.
+- **Launch readiness**: phase-aware readiness that rewards acceleration and penalizes saturation.
+- **Launch window**: `TOO_EARLY`, `WATCH`, `FORMING_WINDOW`, `PRIME_WINDOW`, `LATE_STAGE`, or `SATURATED`.
+- **Timing diagnostics**: acceleration slope, momentum persistence, quote-chain expansion, propagation half-life, remix growth rate, and cross-community breakout timing.
+- **Saturation pressure**: whether visibility, passive engagement, flattening quotes, copycats, or swarm pressure suggest the window is closing.
 - **Market archetype**: mascot, phrase, personality, event, aesthetic, identity, movement, reaction, chaos, collectible, anti-meme, or trendwave.
 - **Narrative half-life**: flash trend, short-cycle meme, medium-cycle narrative, or persistent identity candidate.
-- **Launch recommendation**: `DO_NOT_LAUNCH`, `WATCH`, `EARLY_OPPORTUNITY`, `HIGH_CONVICTION`, or `BREAKOUT_FORMING`.
+- **Launch recommendation**: `DO_NOT_LAUNCH`, `WATCH`, `PREPARE_LAUNCH`, `HIGH_CONVICTION`, or `BREAKOUT_FORMING`.
 
-Copycat swarms lower launch worthiness because polluted narratives are harder to own. Unclaimed attention with strong propagation and no canonical market receives a boost.
+The phase zones are intentionally early:
+
+- `75-82`: early formation zone
+- `82-90`: high-conviction breakout zone
+- `90+`: possible saturation review zone
+
+Copycat swarms lower launch worthiness because polluted narratives are harder to own. Unclaimed attention with rising quote velocity, cross-community spread, and strong identity formation can receive high readiness before it reaches full internet saturation.
+
+Timing states matter because a narrative can be real but not yet ready, or real but already too late. OINK boosts readiness during quote explosion windows, remix expansion windows, acceleration inflection points, and cross-community breakout moments. It penalizes passive engagement, stale persistence, flattening remixability, and rising copycat density.
 
 ## Narrative Clusters
 
@@ -89,7 +104,7 @@ Cluster intelligence tracks:
 - Market status
 - Copycat swarm pollution
 
-Cluster lifecycle states are `emerging`, `accelerating`, `compounding`, `peaking`, `saturated`, `decaying`, `dormant`, and `reigniting`.
+Cluster lifecycle states are mapped into market phases: `emerging`, `forming`, `accelerating`, `breakout`, `saturated`, `decaying`, `dormant`, and `reigniting`.
 
 A cluster is stronger when multiple posts reinforce the same narrative, multiple accounts carry it into different communities, remix count expands, and momentum persists across scans. If a dormant narrative suddenly accelerates again, OINK marks it as `reigniting` and boosts review priority.
 
