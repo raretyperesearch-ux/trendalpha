@@ -3,7 +3,7 @@ import { config } from "../config.js";
 const X_RECENT_SEARCH_URL = "https://api.twitter.com/2/tweets/search/recent";
 
 const DEFAULT_SEARCH_QUERIES = [
-  '("no way" OR insane OR wild OR crazy OR unbelievable) has:media lang:en -is:retweet -is:reply',
+  "(no way OR insane OR wild OR unbelievable OR hilarious) has:media lang:en -is:retweet -is:reply",
   "(dog OR cat OR animal OR robot OR ai OR food OR game OR streamer) has:media lang:en -is:retweet -is:reply",
   '("caught on camera" OR "went viral" OR funniest OR wildest OR "this is insane") lang:en -is:retweet -is:reply',
   '(bro OR "no way" OR "im crying" OR "this killed me" OR "what is happening") lang:en -is:retweet -is:reply',
