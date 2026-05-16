@@ -4,7 +4,8 @@ export function generateLaunchBrief({ trend, trendScore, launchScore, token }) {
   const suggestedName = titleCase(selectStrongName(cleanName));
   const suggestedTicker = buildTicker(suggestedName);
   const sourceUrl = getSourceUrl(trend, cleanName);
-  const existingToken = token ? { ...token } : null;
+  const existingToken = token?.matchStatus === "canonical" ? { ...token } : null;
+  const possibleMarket = token?.matchStatus === "possible" ? { ...token } : null;
   const sourceLabel = sourcePlatform === "x" ? "X" : "TikTok";
   const socialTag = buildSocialTag({ trend, suggestedName, cleanName });
   const sourceBacklinkText = sourcePlatform === "x"
@@ -29,6 +30,7 @@ export function generateLaunchBrief({ trend, trendScore, launchScore, token }) {
     xLaunchPost,
     riskFlags: launchScore.riskFlags || [],
     existingToken,
+    possibleMarket,
     launchScore,
     trendScore,
   };
@@ -83,8 +85,10 @@ function buildTicker(name) {
 function buildThesis({ trend, suggestedName, launchScore, token }) {
   const direction = trend.trendDirection === "rising" ? "rising" : "active";
   const sourceLabel = trend.sourcePlatform === "x" ? "X post" : "TikTok attention cluster";
-  const tokenContext = token
+  const tokenContext = token?.matchStatus === "canonical"
     ? "A related token already exists, so OINK treats this as saturation-aware review rather than a blind launch."
+    : token?.matchStatus === "possible"
+      ? "A possible market was detected, but OINK is withholding canonical status until confidence is much higher."
     : "No strong matching token was found, leaving potential white space before a market fully forms.";
 
   return `${suggestedName} is a ${direction} viral ${sourceLabel} with ${articleFor(launchScore.label)} ${launchScore.label} launch score. The signal is interesting because OINK is seeing broad internet attention before on-chain liquidity has clearly captured it. ${tokenContext}`;

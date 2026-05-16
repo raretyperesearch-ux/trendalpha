@@ -17,6 +17,8 @@ OINK was formerly TrendAlpha. TrendAlpha proved the first idea: internet trends 
 
 The goal is not to chase coins that already exist. The goal is to catch the raw attention before the market forms.
 
+OINK is intentionally conservative about existing-token matches. A random copycat token is not treated as the canonical market for a viral post just because one generic word overlaps. Existing markets are attached only when canonical entity confidence is extremely high; weak matches are shown as possible markets without contract addresses, and most raw attention should remain `NO TOKEN FOUND`.
+
 ## What OINK Watches
 
 OINK currently watches two types of attention:
@@ -47,6 +49,16 @@ It cares about:
 - Risk flags around brands, celebrities, tragedy, or already-saturated crypto language
 
 If a post is already talking about `pump.fun`, contract addresses, 100x calls, tickers, or memecoins, OINK treats that as a warning sign. That kind of language may mean the attention is already downstream of crypto instead of originating from broader internet culture.
+
+## Market Matching
+
+OINK prioritizes detecting attention before markets exist. Token matching is gated by canonical confidence:
+
+- `CANONICAL MARKET FOUND`: high-confidence entity and phrase overlap with legitimate market data.
+- `POSSIBLE MARKET DETECTED`: some overlap exists, but confidence is not high enough to show a contract.
+- `NO TOKEN FOUND`: no canonical market, so the post remains an attention-market candidate.
+
+Generic terms like `law`, `cat`, `ai`, `dog`, `base`, `meme`, `coin`, `official`, and `finance` are heavily discounted. Copycat meme tokens and narrative hijacks should not be treated as canonical markets.
 
 ## Launch Flow
 

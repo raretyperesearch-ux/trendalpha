@@ -154,16 +154,17 @@ export async function wasAlertedRecently(trendId) {
  */
 export async function recordAlert(trend, score, token) {
   try {
+    const canonicalToken = token?.matchStatus === "canonical" ? token : null;
     const { error } = await supabase.from("alerts_sent").insert({
       trend_id: trend.id,
       trend_name: trend.name,
       score: score.total,
-      token_found: !!token,
-      token_name: token?.tokenName || null,
-      token_address: token?.tokenAddress || null,
-      token_chain: token?.chain || null,
-      token_price_at_alert: token?.priceUsd || null,
-      token_mcap_at_alert: token?.marketCap || null,
+      token_found: !!canonicalToken,
+      token_name: canonicalToken?.tokenName || null,
+      token_address: canonicalToken?.tokenAddress || null,
+      token_chain: canonicalToken?.chain || null,
+      token_price_at_alert: canonicalToken?.priceUsd || null,
+      token_mcap_at_alert: canonicalToken?.marketCap || null,
       sent_at: new Date().toISOString(),
     });
 

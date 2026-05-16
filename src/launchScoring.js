@@ -193,6 +193,7 @@ function scoreVisualStrength({ name, words, trend, riskFlags = [] }) {
 }
 
 function scoreSaturation(token, trend = null) {
+  if (token?.matchStatus === "possible") return 8;
   if (!token && trend?.cryptoSaturatedLanguage) return 6;
   if (!token) return 10;
 

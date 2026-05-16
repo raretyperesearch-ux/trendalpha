@@ -54,7 +54,7 @@ export function initBot() {
       const score = scoreTrend(freshTrend);
 
       // Re-check token
-      const token = await findToken(freshTrend.name);
+      const token = await findToken(freshTrend);
 
       // Build updated message
       const message = formatAlertMessage({ trend: freshTrend, score, token });
@@ -288,9 +288,10 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
   msg += `━━━━━━━━━━━━━━━━━━━━\n\n`;
 
   // Token data
-  if (token) {
-    msg += `✅ <b>TOKEN FOUND</b>\n`;
-    msg += `<b>${escapeHtml(token.tokenName)}</b> <code>${token.chain}</code>\n\n`;
+  if (token?.matchStatus === "canonical") {
+    msg += `✅ <b>CANONICAL MARKET FOUND</b>\n`;
+    msg += `<b>${escapeHtml(token.tokenName)}</b> <code>${escapeHtml(token.tokenSymbol || "")}</code> <code>${token.chain}</code>\n`;
+    msg += `Confidence: ${(Number(token.matchConfidence || 0) * 100).toFixed(0)}%\n\n`;
 
     msg += `<code>`;
     msg += `💰 MCap:      ${formatNumber(token.marketCap)}\n`;
@@ -311,10 +312,28 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
     msg += ` | <a href="https://trojan.com/@Rare">Trojan</a>`;
     msg += ` | <a href="https://gmgn.ai/r/viraltok">GMGN</a>`;
     msg += ` | <a href="${token.url}">DS</a>\n`;
+  } else if (token?.matchStatus === "possible") {
+    msg += `⚠️ <b>POSSIBLE MARKET DETECTED</b>\n`;
+    msg += `<b>${escapeHtml(token.tokenName)}</b> <code>${escapeHtml(token.tokenSymbol || "")}</code> on ${escapeHtml(token.chain || "unknown")}\n`;
+    msg += `Confidence: ${(Number(token.matchConfidence || 0) * 100).toFixed(0)}%\n`;
+    msg += `Contract withheld until canonical match confidence clears OINK threshold.\n\n`;
+    msg += `<code>`;
+    msg += `MCap:      ${formatNumber(token.marketCap)}\n`;
+    msg += `24h Vol:   ${formatNumber(token.volume24h)}\n`;
+    msg += `Liquidity: ${formatNumber(token.liquidity)}\n`;
+    msg += `</code>\n\n`;
+    msg += `OINK is treating this as unconfirmed and still watching launch potential.\n\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `🔗 <b>Trade (save 40% on fees):</b>\n`;
+    msg += `<a href="https://axiom.trade/@viraltok">Axiom</a>`;
+    msg += ` | <a href="https://trade.padre.gg/rk/raretype">Padre</a>`;
+    msg += ` | <a href="https://trojan.com/@Rare">Trojan</a>`;
+    msg += ` | <a href="https://gmgn.ai/r/viraltok">GMGN</a>`;
+    msg += ` | <a href="https://pump.fun">pump.fun</a>\n`;
   } else {
-    msg += `⚠️ <b>NO TOKEN YET</b>\n\n`;
-    msg += `No matching token found.\n`;
-    msg += `OINK is watching for launch potential.\n\n`;
+    msg += `❌ <b>NO TOKEN FOUND</b>\n\n`;
+    msg += `No canonical market found.\n`;
+    msg += `OINK is watching this as attention before a market exists.\n\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━\n`;
     msg += `🔗 <b>Trade (save 40% on fees):</b>\n`;
     msg += `<a href="https://axiom.trade/@viraltok">Axiom</a>`;
@@ -497,8 +516,9 @@ function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBr
 
   if (launchBrief.existingToken) {
     const token = launchBrief.existingToken;
-    msg += `<b>Existing Token:</b>\n`;
+    msg += `<b>Canonical Market Found:</b>\n`;
     msg += `${escapeHtml(token.tokenName || "Unknown")} on ${escapeHtml(token.chain || "unknown")}\n`;
+    msg += `Confidence: ${(Number(token.matchConfidence || 0) * 100).toFixed(0)}%\n`;
     msg += `<code>`;
     msg += `MCap:      ${formatNumber(token.marketCap)}\n`;
     msg += `24h Vol:   ${formatNumber(token.volume24h)}\n`;
@@ -506,6 +526,15 @@ function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBr
     msg += `</code>\n`;
     if (token.url) msg += `<a href="${escapeHtml(token.url)}">Market link</a>\n`;
     msg += `\n`;
+  } else if (launchBrief.possibleMarket) {
+    const token = launchBrief.possibleMarket;
+    msg += `<b>Possible Market Detected:</b>\n`;
+    msg += `${escapeHtml(token.tokenName || "Unknown")} on ${escapeHtml(token.chain || "unknown")}\n`;
+    msg += `Confidence: ${(Number(token.matchConfidence || 0) * 100).toFixed(0)}%\n`;
+    msg += `Contract withheld until canonical confidence clears OINK threshold.\n\n`;
+  } else if (isX) {
+    msg += `<b>Market Status:</b>\n`;
+    msg += `No canonical market found. Launch opportunity remains open.\n\n`;
   }
 
   if (launchBrief.riskFlags?.length) {

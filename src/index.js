@@ -148,7 +148,7 @@ async function runScan() {
         }
       }
 
-      const token = await findToken(trend.name);
+      const token = await findToken(trend);
       const launchScore = config.launch.enableLaunchCandidates
         ? scoreLaunchOpportunity(trend, token, prevSnapshot)
         : null;

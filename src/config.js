@@ -37,6 +37,12 @@ export const config = {
     intervalMinutes: optionalInt("SCAN_INTERVAL_MINUTES", "15"),
     minScore: optionalInt("MIN_SCORE_TO_ALERT", "70"),
   },
+  tokenMatching: {
+    enabled: optionalBool("ENABLE_EXISTING_TOKEN_MATCHING", true),
+    confidenceThreshold: Number(optional("TOKEN_MATCH_CONFIDENCE_THRESHOLD", "0.90")),
+    possibleThreshold: Number(optional("TOKEN_POSSIBLE_THRESHOLD", "0.50")),
+    launchIfNoMarket: optionalBool("X_LAUNCH_IF_NO_MARKET", true),
+  },
   launch: {
     minLaunchScore: optionalInt("MIN_LAUNCH_SCORE", "82"),
     enableLaunchCandidates: optionalBool("ENABLE_LAUNCH_CANDIDATES", true),
