@@ -14,8 +14,17 @@ import https from "node:https";
 
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || "";
 const RAPIDAPI_HOST = "tiktok-creative-center-api.p.rapidapi.com";
+const TELEGRAM_CALLBACK_DATA_MAX_BYTES = 64;
+const TELEGRAM_MESSAGE_MAX_CHARS = 4096;
 
 let bot = null;
+const alertMetrics = {
+  attemptedAlerts: 0,
+  successfulAlerts: 0,
+  failedAlerts: 0,
+  retryRecoveries: 0,
+  fallbackRecoveries: 0,
+};
 
 export function initBot() {
   bot = new Bot(config.telegram.botToken);
@@ -60,10 +69,14 @@ export function initBot() {
       const message = formatAlertMessage({ trend: freshTrend, score, token });
 
       // Edit the original message in place
+      const keyboard = buildSafeInlineKeyboard({
+        type: "refresh",
+        refreshId: hashtagName,
+      });
       await ctx.editMessageText(message, {
         parse_mode: "HTML",
         disable_web_page_preview: true,
-        reply_markup: buildRefreshKeyboard(hashtagName),
+        ...(keyboard ? { reply_markup: keyboard } : {}),
       });
 
       console.log(`✅ Refreshed #${hashtagName} — score: ${score.total}`);
@@ -82,8 +95,10 @@ export function initBot() {
  * Build the inline keyboard with refresh button
  */
 function buildRefreshKeyboard(hashtagName) {
-  const callbackData = safeCallbackData("ref", hashtagName);
-  return new InlineKeyboard().text("🔄 Refresh", callbackData);
+  return buildSafeInlineKeyboard({
+    type: "refresh",
+    refreshId: hashtagName,
+  });
 }
 
 /**
@@ -187,39 +202,19 @@ export async function sendAlert({ trend, score, token, isNewEntry = false }) {
   if (!bot) throw new Error("Bot not initialized — call initBot() first");
 
   const message = formatAlertMessage({ trend, score, token, isNewEntry });
-
-  // Refresh is TikTok-only. X titles can be long/non-ASCII, which makes
-  // callback payloads brittle and can trigger Telegram BUTTON_DATA_INVALID.
-  const hashtagName = trend.name.replace("#", "");
-  const keyboard = trend.sourcePlatform === "x" ? null : buildRefreshKeyboard(hashtagName);
-
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      await bot.api.sendMessage(config.telegram.channelId, message, {
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-        ...(keyboard ? { reply_markup: keyboard } : {}),
-      });
-      console.log(`📤 Alert sent: ${trend.name} (score: ${score.total})`);
-      return true;
-    } catch (err) {
-      if (err.message?.includes("429") || err.message?.includes("Too Many Requests")) {
-        const match = err.message.match(/retry after (\d+)/);
-        const waitSec = match ? parseInt(match[1]) + 1 : 5 * attempt;
-        console.log(`   ⏳ Rate limited, waiting ${waitSec}s (attempt ${attempt}/3)...`);
-        await sleep(waitSec * 1000);
-      } else {
-        console.error("❌ Failed to send alert:", err.message);
-        return false;
-      }
-    }
-  }
-
-  console.error("❌ Failed after 3 retries for:", trend.name);
-  return false;
+  const compact = formatAlertMessage({ trend, score, token, isNewEntry, mode: "compact" });
+  const sent = await sendTelegramWithFallback({
+    label: `alert:${trend.id || trend.name}`,
+    richHtml: message,
+    compactHtml: compact,
+    minimalText: buildMinimalAlertText({ title: "OINK ALERT", name: trend.name, score: score.total, sourceUrl: trend.sourceUrl }),
+    keyboardAlert: trend.sourcePlatform === "x" ? null : { type: "refresh", refreshId: trend.name.replace("#", "") },
+  });
+  if (sent) console.log(`📤 Alert sent: ${trend.name} (score: ${score.total})`);
+  return sent;
 }
 
-function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
+function formatAlertMessage({ trend, score, token, isNewEntry = false, mode = "rich" }) {
   const conviction = getConviction(score.total);
   const bars = "█".repeat(Math.round(score.total / 10)) +
                "░".repeat(10 - Math.round(score.total / 10));
@@ -241,7 +236,8 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
 
   // Score
   msg += `🎯 SCORE: <b>${score.total}</b>/100\n`;
-  msg += `<code>${bars}</code>\n\n`;
+  if (mode === "rich") msg += `<code>${bars}</code>\n\n`;
+  else msg += `\n`;
 
   // Source data
   msg += `━━━━━━━━━━━━━━━━━━━━\n`;
@@ -257,8 +253,10 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
       msg += `Launch Worthiness: <b>${trend.launchWorthinessScore}/100</b>\n`;
       msg += `Archetype: <b>${escapeHtml(formatLabel(trend.marketArchetype || "trendwave"))}</b>\n`;
       msg += `Narrative Half-Life: <b>${escapeHtml(formatLabel(trend.narrativeHalfLifeEstimate || "flash trend"))}</b>\n`;
-      msg += `Community Formation: <b>${escapeHtml(trend.communityFormationLabel || "LOW")}</b>\n`;
-      msg += `Remixability: <b>${escapeHtml(trend.remixabilityLabel || "LOW")}</b>\n`;
+      if (mode === "rich") {
+        msg += `Community Formation: <b>${escapeHtml(trend.communityFormationLabel || "LOW")}</b>\n`;
+        msg += `Remixability: <b>${escapeHtml(trend.remixabilityLabel || "LOW")}</b>\n`;
+      }
       msg += `Recommendation: <b>${escapeHtml(trend.launchRecommendation || "WATCH")}</b>\n`;
     }
     if (trend.quoteExplosion) msg += `Quote Explosion Detected ⚡\n`;
@@ -289,7 +287,7 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
     msg += `📊 Song Rank:    #${trend.rank}\n`;
     if (trend.duration) msg += `⏱ Duration:     ${trend.duration}s\n`;
   } else if (trend.sourcePlatform === "x") {
-    msg += formatXMetricsCodeBlock(trend, { includeReposts: true, includeShape: true, raw: true });
+    msg += formatXMetricsCodeBlock(trend, { includeReposts: true, includeShape: true, raw: true, compact: mode !== "rich" });
   } else {
     msg += `⚡ Views/hour:   ${viewsPerHourStr}\n`;
     msg += `👁 Total views:   ${formatCount(trend.totalViews)}\n`;
@@ -313,7 +311,7 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
     msg += `</code>\n\n`;
 
     // CA — tap to copy
-    msg += `📋 CA: <code>${token.tokenAddress}</code>\n\n`;
+    if (mode === "rich") msg += `📋 CA: <code>${token.tokenAddress}</code>\n\n`;
 
     // Trade links with ref
     msg += `━━━━━━━━━━━━━━━━━━━━\n`;
@@ -322,7 +320,7 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
     msg += ` | <a href="https://trade.padre.gg/rk/raretype">Padre</a>`;
     msg += ` | <a href="https://trojan.com/@Rare">Trojan</a>`;
     msg += ` | <a href="https://gmgn.ai/r/viraltok">GMGN</a>`;
-    msg += ` | <a href="${token.url}">DS</a>\n`;
+    msg += ` | <a href="${escapeHtml(safeTelegramUrl(token.url, "https://dexscreener.com"))}">DS</a>\n`;
   } else if (token?.matchStatus === "possible") {
     msg += `⚠️ <b>POSSIBLE MARKET DETECTED</b>\n`;
     msg += `<b>${escapeHtml(token.tokenName)}</b> <code>${escapeHtml(token.tokenSymbol || "")}</code> on ${escapeHtml(token.chain || "unknown")}\n`;
@@ -357,7 +355,7 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false }) {
   // Last updated timestamp
   msg += `\n<i>Updated: ${timeStr} ET</i>`;
 
-  return msg;
+  return constrainTelegramMessage(msg);
 }
 
 function escapeHtml(text) {
@@ -387,7 +385,7 @@ export async function sendDigest(trends, scores) {
     const arrow = trend.trendDirection === "rising" ? "📈" :
                   trend.trendDirection === "falling" ? "📉" : "➡️";
     if (trend.sourcePlatform === "x") {
-      msg += `${i + 1}. <a href="${escapeHtml(trend.sourceUrl)}">${escapeHtml(trend.name)}</a>`;
+      msg += `${i + 1}. <a href="${escapeHtml(safeTelegramUrl(trend.sourceUrl, "https://x.com"))}">${escapeHtml(trend.name)}</a>`;
     } else if (trend.type === "song") {
       msg += `${i + 1}. 🎵 ${escapeHtml(trend.name)}`;
     } else {
@@ -414,30 +412,105 @@ export async function sendDigest(trends, scores) {
   msg += ` | <a href="https://gmgn.ai/r/viraltok">GMGN</a>\n`;
   msg += `\n<i>Next digest in 3 hours</i>`;
 
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      await bot.api.sendMessage(config.telegram.channelId, msg, {
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-      });
-      console.log(`📊 Digest sent — ${top.length} trends`);
-      return true;
-    } catch (err) {
-      if (err.message?.includes("429")) {
-        const match = err.message.match(/retry after (\d+)/);
-        const waitSec = match ? parseInt(match[1]) + 1 : 5 * attempt;
-        await sleep(waitSec * 1000);
-      } else {
-        console.error("❌ Digest send failed:", err.message);
-        return false;
-      }
-    }
-  }
-  return false;
+  const sent = await sendTelegramWithFallback({
+    label: "digest",
+    richHtml: msg,
+    compactHtml: constrainTelegramMessage(msg),
+    minimalText: buildMinimalAlertText({ title: "OINK TRENDING DIGEST", name: `${top.length} trends`, score: null }),
+  });
+  if (sent) console.log(`📊 Digest sent — ${top.length} trends`);
+  return sent;
 }
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function sendTelegramWithFallback({ label, richHtml, compactHtml, minimalText, keyboardAlert = null, api = bot?.api }) {
+  if (!api) throw new Error("Bot API unavailable");
+
+  alertMetrics.attemptedAlerts++;
+  const keyboard = buildSafeInlineKeyboard(keyboardAlert);
+  const attempts = [
+    {
+      mode: "rich",
+      text: constrainTelegramMessage(richHtml),
+      options: {
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+        ...(keyboard ? { reply_markup: keyboard } : {}),
+      },
+    },
+    {
+      mode: "rich_no_buttons",
+      text: constrainTelegramMessage(richHtml),
+      options: {
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+      },
+    },
+    {
+      mode: "compact",
+      text: constrainTelegramMessage(compactHtml || richHtml),
+      options: {
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+      },
+    },
+    {
+      mode: "minimal",
+      text: constrainTelegramMessage(minimalText || htmlToPlainText(compactHtml || richHtml), { maxChars: 3500 }),
+      options: {
+        disable_web_page_preview: true,
+      },
+    },
+  ];
+
+  const enabledAttempts = config.telegram.safeMode
+    ? attempts.filter((attempt) => attempt.mode === "compact" || attempt.mode === "minimal")
+    : attempts;
+  if (config.telegram.safeMode) {
+    console.log(`   🧰 Telegram safe mode enabled for ${label}; starting at compact mode`);
+  }
+
+  let previousError = null;
+  for (const attempt of enabledAttempts) {
+    for (let rateAttempt = 1; rateAttempt <= 3; rateAttempt++) {
+      try {
+        logTelegramPayload({ label, mode: attempt.mode, keyboard: attempt.options.reply_markup ? keyboard : null });
+        await api.sendMessage(config.telegram.channelId, attempt.text, attempt.options);
+        alertMetrics.successfulAlerts++;
+        if (previousError) {
+          if (attempt.mode === "rich_no_buttons") alertMetrics.retryRecoveries++;
+          else alertMetrics.fallbackRecoveries++;
+          console.log(`   ✅ Telegram fallback recovered ${label} using ${attempt.mode}`);
+        }
+        return true;
+      } catch (err) {
+        previousError = err;
+        if (isRateLimitError(err)) {
+          const waitSec = getRetryAfterSeconds(err, rateAttempt);
+          console.log(`   ⏳ Telegram rate limited for ${label}, waiting ${waitSec}s (attempt ${rateAttempt}/3)...`);
+          await sleep(waitSec * 1000);
+          continue;
+        }
+        console.error(`   ⚠️  Telegram ${attempt.mode} failed for ${label}: ${err.message}`);
+        if (isButtonDataInvalid(err) && attempt.mode === "rich") {
+          console.log(`   🧯 BUTTON_DATA_INVALID for ${label}; retrying without buttons`);
+          break;
+        }
+        if (isTelegramBadRequest(err)) {
+          console.log(`   🧯 Telegram rejected ${attempt.mode}; downgrading alert mode`);
+          break;
+        }
+        break;
+      }
+    }
+  }
+
+  alertMetrics.failedAlerts++;
+  console.error(`❌ Telegram alert failed after all fallbacks: ${label}`);
+  return false;
 }
 
 export async function sendLaunchCandidate({ trend, trendScore, launchScore, launchBrief, preparedLaunch }) {
@@ -450,61 +523,40 @@ export async function sendLaunchCandidate({ trend, trendScore, launchScore, laun
     launchBrief,
     preparedLaunch,
   });
-
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      await bot.api.sendMessage(config.telegram.channelId, message, {
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-      });
-      console.log(`📤 Launch candidate sent: ${trend.name} (launch score: ${launchScore.total})`);
-      return true;
-    } catch (err) {
-      if (err.message?.includes("429") || err.message?.includes("Too Many Requests")) {
-        const match = err.message.match(/retry after (\d+)/);
-        const waitSec = match ? parseInt(match[1]) + 1 : 5 * attempt;
-        console.log(`   ⏳ Rate limited, waiting ${waitSec}s (attempt ${attempt}/3)...`);
-        await sleep(waitSec * 1000);
-      } else {
-        console.error("❌ Failed to send launch candidate:", err.message);
-        return false;
-      }
-    }
-  }
-
-  console.error("❌ Failed after 3 retries for launch candidate:", trend.name);
-  return false;
+  const compact = formatLaunchCandidateMessage({
+    trend,
+    trendScore,
+    launchScore,
+    launchBrief,
+    preparedLaunch,
+    mode: "compact",
+  });
+  const sent = await sendTelegramWithFallback({
+    label: `launch:${trend.id || trend.name}`,
+    richHtml: message,
+    compactHtml: compact,
+    minimalText: buildMinimalAlertText({ title: "OINK LAUNCH CANDIDATE", name: trend.name, score: launchScore.total, sourceUrl: launchBrief.sourceUrl }),
+  });
+  if (sent) console.log(`📤 Launch candidate sent: ${trend.name} (launch score: ${launchScore.total})`);
+  return sent;
 }
 
 export async function sendNarrativeClusterAlert(cluster) {
   if (!bot) throw new Error("Bot not initialized — call initBot() first");
 
   const message = formatNarrativeClusterAlert(cluster);
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      await bot.api.sendMessage(config.telegram.channelId, message, {
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-      });
-      console.log(`📤 Narrative cluster sent: ${cluster.canonicalEntity} (${cluster.launchWorthinessScore})`);
-      return true;
-    } catch (err) {
-      if (err.message?.includes("429") || err.message?.includes("Too Many Requests")) {
-        const match = err.message.match(/retry after (\d+)/);
-        const waitSec = match ? parseInt(match[1]) + 1 : 5 * attempt;
-        console.log(`   ⏳ Rate limited, waiting ${waitSec}s (attempt ${attempt}/3)...`);
-        await sleep(waitSec * 1000);
-      } else {
-        console.error("❌ Failed to send narrative cluster:", err.message);
-        return false;
-      }
-    }
-  }
-
-  return false;
+  const compact = formatNarrativeClusterAlert(cluster, { mode: "compact" });
+  const sent = await sendTelegramWithFallback({
+    label: `cluster:${cluster.clusterId || cluster.canonicalEntity}`,
+    richHtml: message,
+    compactHtml: compact,
+    minimalText: buildMinimalAlertText({ title: "OINK NARRATIVE CLUSTER", name: cluster.canonicalEntity, score: cluster.launchWorthinessScore }),
+  });
+  if (sent) console.log(`📤 Narrative cluster sent: ${cluster.canonicalEntity} (${cluster.launchWorthinessScore})`);
+  return sent;
 }
 
-export function formatNarrativeClusterAlert(cluster) {
+export function formatNarrativeClusterAlert(cluster, { mode = "rich" } = {}) {
   const topPosts = (cluster.relatedPosts || [])
     .slice()
     .sort((a, b) => Number(b.attentionMomentum || 0) - Number(a.attentionMomentum || 0))
@@ -531,7 +583,7 @@ export function formatNarrativeClusterAlert(cluster) {
   if (cluster.copycatSwarm) msg += `Copycat Swarm Pollution Detected\n`;
   if (cluster.viralShapeReason) msg += `${escapeHtml(cluster.viralShapeReason)}\n`;
 
-  if (topPosts.length > 0) {
+  if (mode === "rich" && topPosts.length > 0) {
     msg += `\n<b>Top Sources:</b>\n`;
     for (const post of topPosts) {
       const url = safeTelegramUrl(post.sourceUrl, "https://x.com");
@@ -541,10 +593,10 @@ export function formatNarrativeClusterAlert(cluster) {
     }
   }
 
-  return msg;
+  return constrainTelegramMessage(msg);
 }
 
-function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBrief, preparedLaunch }) {
+function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBrief, preparedLaunch, mode = "rich" }) {
   const reasons = launchScore.reasons?.length
     ? launchScore.reasons.slice(0, 3)
     : ["Attention velocity cleared OINK launch review.", "Market formation appears early.", "Trend is suitable for candidate preparation."];
@@ -566,8 +618,10 @@ function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBr
       msg += `Launch Worthiness: <b>${trend.launchWorthinessScore}/100</b>\n`;
       msg += `Archetype: <b>${escapeHtml(formatLabel(trend.marketArchetype || "trendwave"))}</b>\n`;
       msg += `Narrative Half-Life: <b>${escapeHtml(formatLabel(trend.narrativeHalfLifeEstimate || "flash trend"))}</b>\n`;
-      msg += `Community Formation: <b>${escapeHtml(trend.communityFormationLabel || "LOW")}</b>\n`;
-      msg += `Remixability: <b>${escapeHtml(trend.remixabilityLabel || "LOW")}</b>\n`;
+      if (mode === "rich") {
+        msg += `Community Formation: <b>${escapeHtml(trend.communityFormationLabel || "LOW")}</b>\n`;
+        msg += `Remixability: <b>${escapeHtml(trend.remixabilityLabel || "LOW")}</b>\n`;
+      }
       msg += `Recommendation: <b>${escapeHtml(trend.launchRecommendation || "WATCH")}</b>\n\n`;
     }
     msg += `Viral Shape: <b>${escapeHtml(formatLabel(trend.viralShape || "compounding"))}</b>\n`;
@@ -596,7 +650,7 @@ function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBr
   if (isX) {
     msg += `<b>Bring It Back To The Source:</b>\n`;
     msg += `${escapeHtml(launchBrief.sourceBacklinkText || "")}\n\n`;
-    if (launchBrief.xLaunchPost) {
+    if (mode === "rich" && launchBrief.xLaunchPost) {
       msg += `<b>Suggested X Post:</b>\n`;
       msg += `<code>${escapeHtml(launchBrief.xLaunchPost)}</code>\n\n`;
     }
@@ -612,7 +666,7 @@ function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBr
     msg += `24h Vol:   ${formatNumber(token.volume24h)}\n`;
     msg += `Liquidity: ${formatNumber(token.liquidity)}\n`;
     msg += `</code>\n`;
-    if (token.url) msg += `<a href="${escapeHtml(token.url)}">Market link</a>\n`;
+    if (token.url) msg += `<a href="${escapeHtml(safeTelegramUrl(token.url, "https://dexscreener.com"))}">Market link</a>\n`;
     msg += `\n`;
   } else if (launchBrief.possibleMarket) {
     const token = launchBrief.possibleMarket;
@@ -641,7 +695,7 @@ function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBr
   msg += `Viral Attention → Autonomous Launch → Fees → $OINK Buybacks\n`;
   msg += `<i>${escapeHtml(getBuybackSummary())}</i>`;
 
-  return msg;
+  return constrainTelegramMessage(msg);
 }
 
 function getSourceLabel(trend) {
@@ -653,12 +707,14 @@ export async function sendLaunchCreatedAlert({ trend, launchBrief, launchedToken
   if (!bot) throw new Error("Bot not initialized — call initBot() first");
 
   const message = formatLaunchCreatedAlert({ trend, launchBrief, launchedToken, feeSummary });
-  await bot.api.sendMessage(config.telegram.channelId, message, {
-    parse_mode: "HTML",
-    disable_web_page_preview: true,
+  const sent = await sendTelegramWithFallback({
+    label: `created:${launchedToken.ticker || launchedToken.name}`,
+    richHtml: message,
+    compactHtml: message,
+    minimalText: buildMinimalAlertText({ title: "OINK MARKET CREATED", name: launchedToken.name, score: null, sourceUrl: launchedToken.launchUrl }),
   });
-  console.log(`📤 Launch-created alert sent: ${launchedToken.name} (${launchedToken.ticker})`);
-  return true;
+  if (sent) console.log(`📤 Launch-created alert sent: ${launchedToken.name} (${launchedToken.ticker})`);
+  return sent;
 }
 
 export function formatLaunchCreatedAlert({ trend, launchBrief, launchedToken, feeSummary = null }) {
@@ -682,7 +738,7 @@ export function formatLaunchCreatedAlert({ trend, launchBrief, launchedToken, fe
   msg += `<code>${escapeHtml(launchedToken.contractAddress || "pending")}</code>\n\n`;
   msg += `<b>Launch:</b>\n`;
   if (launchedToken.launchUrl) {
-    msg += `<a href="${escapeHtml(launchedToken.launchUrl)}">${escapeHtml(launchedToken.platform || "launch link")}</a>\n\n`;
+    msg += `<a href="${escapeHtml(safeTelegramUrl(launchedToken.launchUrl, "https://pump.fun"))}">${escapeHtml(launchedToken.platform || "launch link")}</a>\n\n`;
   } else {
     msg += `${escapeHtml(launchedToken.platform || "pending")}\n\n`;
   }
@@ -691,7 +747,7 @@ export function formatLaunchCreatedAlert({ trend, launchBrief, launchedToken, fe
   if (feeSummary) msg += `${escapeHtml(feeSummary)}\n`;
   msg += `\nThis market was created from viral internet attention detected by OINK.`;
 
-  return msg;
+  return constrainTelegramMessage(msg);
 }
 
 function formatXMetricsCodeBlock(trend, options = {}) {
@@ -701,8 +757,14 @@ function formatXMetricsCodeBlock(trend, options = {}) {
     includeReplies = false,
     includeShape = false,
     raw = false,
+    compact = false,
   } = options;
-  const lines = [
+  const lines = compact ? [
+    `Views/hr: ${formatCount(trend.viewsPerHour)}`,
+    `Shares/hr: ${formatCount(trend.shareVelocity)}`,
+    `Quotes: ${formatCount(trend.quoteCount)}`,
+    `Shape: ${formatCount(trend.attentionShapeScore)}`,
+  ] : [
     `👁 Views:       ${formatCount(trend.totalViews)}`,
     `⚡ Views/hr:    ${formatCount(trend.viewsPerHour)}`,
     `🔁 Shares:      ${formatCount(trend.shareCount)}`,
@@ -742,7 +804,7 @@ function safeCallbackData(prefix, value) {
     .replace(/[^a-zA-Z0-9_-]/g, "_")
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "");
-  const maxBytes = 64;
+  const maxBytes = TELEGRAM_CALLBACK_DATA_MAX_BYTES;
   let data = `${safePrefix}:${cleaned || "refresh"}`;
   while (Buffer.byteLength(data, "utf8") > maxBytes) {
     data = data.slice(0, -1);
@@ -753,7 +815,7 @@ function safeCallbackData(prefix, value) {
 function safeTelegramUrl(url, fallback) {
   try {
     const parsed = new URL(String(url || fallback));
-    if (parsed.protocol === "http:" || parsed.protocol === "https:") return parsed.toString();
+    if (parsed.protocol === "https:") return parsed.toString();
   } catch (_) {}
   return fallback;
 }
@@ -763,4 +825,123 @@ function labelSpread(score) {
   if (value >= 220) return "HIGH";
   if (value >= 120) return "MEDIUM";
   return "LOW";
+}
+
+export function buildSafeInlineKeyboard(alert = null) {
+  if (!alert || config.telegram.safeMode) {
+    if (config.telegram.safeMode && alert) {
+      console.log("   🧰 Telegram safe mode enabled; inline buttons disabled");
+    }
+    return null;
+  }
+
+  const buttons = [];
+  if (alert.type === "refresh") {
+    const callbackData = safeCallbackData("ref", alert.refreshId);
+    const size = Buffer.byteLength(callbackData, "utf8");
+    if (size > TELEGRAM_CALLBACK_DATA_MAX_BYTES) {
+      console.log(`   ⚠️  Rejected refresh button payload (${size} bytes)`);
+    } else {
+      console.log(`   🔘 Telegram button refresh callback_data=${size} bytes`);
+      buttons.push({ text: "Refresh", callback_data: callbackData });
+    }
+  }
+
+  if (alert.url) {
+    const url = validateHttpsUrl(alert.url);
+    if (url) {
+      buttons.push({ text: String(alert.urlLabel || "Open").slice(0, 32), url });
+    } else {
+      console.log(`   ⚠️  Rejected malformed Telegram button URL: ${String(alert.url).slice(0, 120)}`);
+    }
+  }
+
+  if (buttons.length === 0) return null;
+
+  try {
+    const keyboard = new InlineKeyboard();
+    for (const button of buttons) {
+      if (button.callback_data) keyboard.text(button.text, button.callback_data);
+      else if (button.url) keyboard.url(button.text, button.url);
+    }
+    return keyboard;
+  } catch (err) {
+    console.log(`   ⚠️  Inline keyboard build failed: ${err.message}`);
+    return null;
+  }
+}
+
+export function getTelegramAlertMetrics() {
+  return { ...alertMetrics };
+}
+
+export async function simulateTelegramFallbackForTest(api, payload) {
+  return sendTelegramWithFallback({
+    label: "test-fallback",
+    richHtml: payload.richHtml,
+    compactHtml: payload.compactHtml,
+    minimalText: payload.minimalText,
+    keyboardAlert: payload.keyboardAlert,
+    api,
+  });
+}
+
+function validateHttpsUrl(url) {
+  try {
+    const parsed = new URL(String(url || ""));
+    if (parsed.protocol !== "https:") return null;
+    return parsed.toString();
+  } catch (_) {
+    return null;
+  }
+}
+
+function logTelegramPayload({ label, mode, keyboard }) {
+  const keyboardSize = keyboard ? JSON.stringify(keyboard.inline_keyboard || keyboard).length : 0;
+  console.log(`   📦 Telegram payload ${label} mode=${mode} keyboardBytes=${keyboardSize}`);
+}
+
+function isRateLimitError(err) {
+  return err.message?.includes("429") || err.message?.includes("Too Many Requests");
+}
+
+function getRetryAfterSeconds(err, attempt) {
+  const match = err.message?.match(/retry after (\d+)/i);
+  return match ? parseInt(match[1], 10) + 1 : 5 * attempt;
+}
+
+function isButtonDataInvalid(err) {
+  return err.message?.includes("BUTTON_DATA_INVALID");
+}
+
+function isTelegramBadRequest(err) {
+  return err.message?.includes("400") || err.message?.includes("Bad Request");
+}
+
+function constrainTelegramMessage(message, { maxChars = TELEGRAM_MESSAGE_MAX_CHARS } = {}) {
+  const text = String(message || "");
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, maxChars - 80)}\n\n<i>Truncated for Telegram delivery safety.</i>`;
+}
+
+function htmlToPlainText(html) {
+  return String(html || "")
+    .replace(/<a\s+href="([^"]+)">([^<]+)<\/a>/gi, "$2 ($1)")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function buildMinimalAlertText({ title, name, score, sourceUrl }) {
+  let text = `${title}\n\n${name || "Unknown"}`;
+  if (score !== null && score !== undefined) text += `\nScore: ${score}/100`;
+  const url = validateHttpsUrl(sourceUrl);
+  if (url) text += `\nSource: ${url}`;
+  return text;
 }

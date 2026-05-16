@@ -25,6 +25,7 @@ export const config = {
   telegram: {
     botToken: required("TELEGRAM_BOT_TOKEN"),
     channelId: required("TELEGRAM_CHANNEL_ID"),
+    safeMode: optionalBool("TELEGRAM_SAFE_MODE", true),
   },
   supabase: {
     url: required("SUPABASE_URL"),

@@ -13,6 +13,7 @@
     "test-alert": "node src/scripts/testAlert.js",
     "test-launch-created": "node src/scripts/testLaunchCreatedAlert.js",
     "test-launch": "node src/scripts/testLaunchBrief.js",
+    "test-telegram-alert": "node src/scripts/testTelegramAlert.js",
     "test-x": "node src/scripts/testXProvider.js",
     "test-x-launch": "node src/scripts/testXLaunchScoring.js"
   },

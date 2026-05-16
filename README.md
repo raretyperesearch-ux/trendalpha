@@ -161,6 +161,29 @@ Telegram is the first OINK terminal. X candidates, TikTok trends, launch candida
 
 Narrative cluster cards show entity, lifecycle state, momentum, cross-community spread, posts tracked, accounts involved, remix count, launch worthiness, and recommendation.
 
+### Telegram Reliability
+
+Telegram delivery is treated as higher priority than button richness. OINK validates inline keyboard payloads before sending, keeps `callback_data` under Telegram's 64-byte limit, rejects malformed button URLs, and falls back automatically if Telegram rejects a payload.
+
+Alert delivery downgrades in this order:
+
+```txt
+rich alert with safe buttons
+  -> rich alert without buttons
+  -> compact HTML alert
+  -> minimal plain-text alert
+```
+
+`TELEGRAM_SAFE_MODE=true` disables risky inline buttons and starts alerts in compact mode. This is the recommended production setting while X alert volume is high.
+
+Use:
+
+```bash
+npm run test-telegram-alert
+```
+
+to validate payload sizes, keyboard structure, URL rejection, and fallback recovery without sending a real Telegram message.
+
 ## Dashboard
 
 Run:
@@ -178,6 +201,7 @@ npm run scan
 npm run scan:dry
 npm run test-launch
 npm run test-launch-created
+npm run test-telegram-alert
 npm run test-x
 npm run dashboard
 npm start
