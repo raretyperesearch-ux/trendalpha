@@ -37,7 +37,31 @@ const cluster = {
   emotionalTexture: "awe",
   identityCompressionSummary: "mascot artifact: banana dog + awe + source video",
   artifactSuggestedTicker: "BANANADOG",
-  relatedPosts: [{ sourcePlatform: "x" }],
+  relatedPosts: [{
+    sourcePlatform: "x",
+    sourceUrl: "https://x.com/example/status/123",
+    author: "example",
+    sourceMedia: {
+      sourcePlatform: "x",
+      preferred: {
+        sourcePlatform: "x",
+        sourcePostUrl: "https://x.com/example/status/123",
+        sourceAuthor: "example",
+        sourceBacklink: "https://x.com/example/status/123",
+        sourceMediaUrl: "https://pbs.twimg.com/media/banana-dog.jpg",
+        mediaType: "photo",
+        assetType: "photo",
+        url: "https://pbs.twimg.com/media/banana-dog.jpg",
+        previewImageUrl: "https://pbs.twimg.com/media/banana-dog.jpg",
+        width: 1200,
+        height: 900,
+      },
+      candidates: [],
+      validation: { valid: true, errors: [], warnings: [] },
+    },
+    sourceMediaUrl: "https://pbs.twimg.com/media/banana-dog.jpg",
+    sourceMediaType: "photo",
+  }],
   relatedPhrases: ["banana dog"],
 };
 

@@ -62,6 +62,7 @@ export const config = {
     imageMode: optional("IMAGE_ASSET_MODE", "placeholder"),
     imageLocalPath: optional("IMAGE_ASSET_LOCAL_PATH", ""),
     imageRemoteUrl: optional("IMAGE_ASSET_REMOTE_URL", ""),
+    enableSourceMediaHotlink: optionalBool("ENABLE_SOURCE_MEDIA_HOTLINK", false),
   },
   providers: {
     tiktok: optionalBool("ENABLE_TIKTOK_PROVIDER", true),

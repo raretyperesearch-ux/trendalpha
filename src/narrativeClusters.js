@@ -215,6 +215,9 @@ function addPostToCluster(cluster, post, signals) {
     emotionalTexture: post.emotionalTexture || "",
     identityCompressionSummary: post.identityCompressionSummary || "",
     artifactSuggestedTicker: post.artifactSuggestedTicker || "",
+    sourceMedia: post.sourceMedia || null,
+    sourceMediaUrl: post.sourceMediaUrl || "",
+    sourceMediaType: post.sourceMediaType || "",
   });
 
   cluster.totalAttention += Number(post.totalViews || 0);

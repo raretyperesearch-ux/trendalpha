@@ -31,6 +31,7 @@ export class MetadataPipeline {
       emotionalTexture: source.emotionalTexture,
       identityCompressionSummary: source.identityCompressionSummary,
     };
+    const sourceMedia = source.sourceMedia || getPayloadSourceMedia(source);
 
     const imageAsset = prepareImageAsset({
       launchId: shadowLaunch.launchId,
@@ -39,6 +40,8 @@ export class MetadataPipeline {
       prompt: source.imagePrompt || "",
       artifact,
       narrative,
+      sourceMedia,
+      dryWire: deploymentPayload?.mode === "dry_wire",
     }, this.imageOptions);
 
     const metadata = {
@@ -118,9 +121,17 @@ function buildSloganFragments({ source, token, narrative }) {
 }
 
 function getSourceBacklink(source) {
+  if (source.sourceBacklink) return source.sourceBacklink;
+  if (source.sourceMedia?.preferred?.sourceBacklink) return source.sourceMedia.preferred.sourceBacklink;
   const posts = source.relatedPosts || [];
   const linked = posts.find((post) => post.sourceUrl);
   return linked?.sourceUrl || source.sourceUrl || "";
+}
+
+function getPayloadSourceMedia(source) {
+  const sourcePost = (source.relatedPosts || []).find((post) => post.sourceMedia);
+  if (sourcePost?.sourceMedia) return sourcePost.sourceMedia;
+  return null;
 }
 
 function cleanField(value = "", maxLength = 255) {

@@ -247,7 +247,7 @@ async function searchRecent(query) {
       tweetFields: SAFE_TWEET_FIELDS,
       expansions: "author_id,attachments.media_keys",
       userFields: "username,name,public_metrics",
-      mediaFields: "type,url,preview_image_url",
+      mediaFields: "type,url,preview_image_url,width,height",
     },
     {
       label: "public fields without media",
@@ -442,6 +442,13 @@ function normalizeTweet(tweet, usersById, mediaByKey, queryLane = "broad_media_s
     type: "post",
     hasMedia: media.length > 0,
     mediaType: media[0]?.type || null,
+    mediaAttachments: media.map((item) => ({
+      type: item.type || null,
+      url: item.url || null,
+      preview_image_url: item.preview_image_url || null,
+      width: item.width || null,
+      height: item.height || null,
+    })),
     totalViews,
     videoCount: 0,
     likeCount,

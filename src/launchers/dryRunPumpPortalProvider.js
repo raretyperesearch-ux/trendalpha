@@ -17,11 +17,20 @@ export class DryRunPumpPortalProvider {
     const launchReasoning = buildLaunchReasoning(cluster);
     const launchConfidence = getLaunchConfidence(cluster);
     const artifact = cluster.memeticArtifact || {};
+    const sourcePost = getBestSourcePost(cluster);
+    const sourceMedia = sourcePost?.sourceMedia || null;
     const payload = {
       platform: "pumpportal",
       deploymentMode: "dry_run",
       status: "simulated",
       sourcePlatform: getSourcePlatform(cluster),
+      sourceUrl: sourcePost?.sourceUrl || "",
+      sourceAuthor: sourcePost?.author || "",
+      sourceBacklink: sourcePost?.sourceUrl || "",
+      sourceMedia,
+      sourceMediaUrl: sourcePost?.sourceMediaUrl || sourceMedia?.preferred?.sourceMediaUrl || "",
+      sourceMediaType: sourcePost?.sourceMediaType || sourceMedia?.preferred?.mediaType || "",
+      relatedPosts: getRelatedPostReferences(cluster),
       sourceArtifactType: cluster.sourceArtifactType || artifact.artifactType || "symbolic_artifact",
       artifactStrength: Math.round(Number(cluster.artifactStrength || artifact.artifactStrength || 0)),
       visualReuseMode: cluster.visualReuseMode || artifact.visualReuseMode || "generate_new_image",
@@ -243,6 +252,26 @@ function getSourcePlatform(cluster) {
   if (platforms.has("tiktok")) return "tiktok";
   if (platforms.has("x")) return "x";
   return "memory";
+}
+
+function getBestSourcePost(cluster) {
+  const posts = cluster.relatedPosts || [];
+  return posts.find((post) => post.sourceMedia?.preferred || post.sourceMediaUrl) ||
+    posts.find((post) => post.sourceUrl) ||
+    posts[0] ||
+    null;
+}
+
+function getRelatedPostReferences(cluster) {
+  return (cluster.relatedPosts || []).slice(0, 6).map((post) => ({
+    id: post.id,
+    sourcePlatform: post.sourcePlatform,
+    sourceUrl: post.sourceUrl,
+    author: post.author,
+    sourceMedia: post.sourceMedia || null,
+    sourceMediaUrl: post.sourceMediaUrl || "",
+    sourceMediaType: post.sourceMediaType || "",
+  }));
 }
 
 function buildAudit(cluster, ticker) {

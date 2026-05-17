@@ -13,6 +13,9 @@ function normalizeTikTokTrend(trend) {
     sourceUrl: trend.type === "hashtag"
       ? `https://www.tiktok.com/tag/${encodeURIComponent(cleanName)}`
       : trend.songLink || "https://www.tiktok.com/",
+    coverImage: trend.coverImage || trend.thumbnailUrl || trend.coverUrl || trend.videoCover || "",
+    thumbnailUrl: trend.thumbnailUrl || trend.coverImage || trend.coverUrl || trend.videoCover || "",
+    videoUrl: trend.videoUrl || "",
     riskFlags: trend.riskFlags || [],
   };
 }

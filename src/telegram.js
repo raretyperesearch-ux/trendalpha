@@ -633,6 +633,7 @@ export function formatMetadataReadyAlert(deploymentAttempt) {
   msg += `Ticker:\n<b>$${escapeHtml(deploymentAttempt.ticker || payload.token?.symbol || "OINK")}</b>\n\n`;
   msg += `Name:\n<b>${escapeHtml(metadata.name || payload.token?.name || "Unknown")}</b>\n\n`;
   msg += `Image Status:\n<b>${escapeHtml(formatLabel(imageAsset.validationStatus || "image_needed"))}</b>\n\n`;
+  msg += `Image Source:\n<b>${escapeHtml(imageAsset.imageSource || "GENERATED FALLBACK")}</b>\n\n`;
   msg += `Visual Score:\n<b>${Number(imageAsset.qualityScore || 0)}/100</b>\n\n`;
   msg += `Thumbnail Strength:\n<b>${escapeHtml(visualScore.thumbnailStrengthLabel || "LOW")}</b>\n\n`;
   msg += `Metadata:\n<b>${metadataReady ? "READY" : "NOT READY"}</b>\n\n`;
@@ -670,6 +671,7 @@ export function formatDeploymentReadyAlert(deploymentAttempt) {
   msg += `Swarm:      ${Number(context.swarmPressure || 0)}/100\n`;
   msg += `Artifact:   ${payload.metadata?.sourceArtifactType || "symbolic_artifact"}\n`;
   msg += `Image:      ${payload.metadata?.imageUpload?.validationStatus || "image_needed"}\n`;
+  msg += `Img Source: ${payload.metadata?.imageUpload?.imageSource || "GENERATED FALLBACK"}\n`;
   msg += `Metadata:   ${payload.metadataState || "draft"}\n`;
   msg += `Valid:      ${validation.valid ? "yes" : "no"}`;
   msg += `</code>\n\n`;

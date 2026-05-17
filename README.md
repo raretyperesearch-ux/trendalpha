@@ -178,6 +178,20 @@ The metadata pipeline turns OINK identity output into PumpPortal-ready fields: `
 
 The image pipeline supports placeholder mode, local generated asset paths, remote HTTPS image URLs, and a future AI-image hook. It scores silhouette clarity, meme readability, screenshot survivability, remixability, narrative alignment, emotional texture, and thumbnail strength.
 
+## Source Media Extraction
+
+OINK uses a source-first image strategy. Native viral artifacts often carry the original memetic context better than generic generated art, so the image pipeline now prefers:
+
+1. Original post media from the viral source
+2. Source video thumbnails or preview images
+3. Remixed/generated imagery from the source prompt
+4. Fully generated fallback imagery
+5. Placeholder assets only in dry-wire review mode
+
+For X posts, OINK can extract photo media plus video or animated GIF preview thumbnails when the X API returns media expansions. For TikTok, OINK is ready to use cover images or thumbnails when the provider supplies them; video URLs are stored as references, not launch images.
+
+Source media is validated before use. OINK rejects missing or non-HTTPS URLs, tiny assets, likely profile images, unsupported file types, and dimensions unsuitable for launch metadata. Dry-wire mode can store source URLs for review, but live hotlinking stays disabled unless `ENABLE_SOURCE_MEDIA_HOTLINK=true`.
+
 Placeholder and unresolved AI-hook images can remain in draft review, but they cannot become metadata-ready. Generic, corporate, overly realistic, unrelated, or weak-silhouette prompts are rejected before deployment readiness.
 
 When live providers are unavailable, `MEMORY_ONLY_LAUNCH_TEST_MODE=true` lets OINK load recent high-quality `narrative_cluster_snapshots`, generate dry-run PumpPortal payloads, persist them to `shadow_launches`, and send `OINK PREPARE LAUNCH` Telegram alerts. It only uses stored narrative memory and never broadcasts a launch.
@@ -288,6 +302,7 @@ npm run test-launch-created
 npm run test-metadata
 npm run test-image-pipeline
 npm run test-pumpportal
+npm run test-source-media
 npm run test-telegram-alert
 npm run test-shadow-launches
 npm run test-x

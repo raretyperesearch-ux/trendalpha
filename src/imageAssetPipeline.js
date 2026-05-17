@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { config } from "./config.js";
+import { getBestSourceMedia } from "./sourceMedia.js";
 
 const IMAGE_STATES = {
   DRAFT: "draft",
@@ -22,31 +23,50 @@ export class ImageAssetPipeline {
     this.mode = options.mode || config.metadata.imageMode || "placeholder";
     this.localPath = options.localPath || config.metadata.imageLocalPath || "";
     this.remoteUrl = options.remoteUrl || config.metadata.imageRemoteUrl || "";
+    this.enableSourceMediaHotlink = options.enableSourceMediaHotlink ?? config.metadata.enableSourceMediaHotlink;
   }
 
-  prepare({ launchId, clusterId, ticker, prompt, artifact = {}, narrative = {} }) {
-    const quality = scoreVisualIdentity({ prompt, artifact, narrative });
-    const validation = validateImageAsset({
+  prepare({ launchId, clusterId, ticker, prompt, artifact = {}, narrative = {}, sourceMedia = null, dryWire = true }) {
+    const selectedMedia = getBestSourceMedia({ sourceMedia });
+    const sourceChoice = chooseImageSource({
       mode: this.mode,
-      prompt,
+      selectedMedia,
       localPath: this.localPath,
       remoteUrl: this.remoteUrl,
+      dryWire,
+      enableSourceMediaHotlink: this.enableSourceMediaHotlink,
+    });
+    const quality = scoreVisualIdentity({ prompt, artifact, narrative });
+    const validation = validateImageAsset({
+      mode: sourceChoice.mode,
+      prompt,
+      localPath: this.localPath,
+      remoteUrl: sourceChoice.imageUrl,
       quality,
       artifact,
+      sourceChoice,
     });
 
-    const state = getImageState({ mode: this.mode, validation });
+    const state = getImageState({ mode: sourceChoice.mode, validation });
     return {
       launchId,
       clusterId,
       ticker,
-      assetType: "launch_image",
-      mode: this.mode,
+      assetType: sourceChoice.assetType,
+      mode: sourceChoice.mode,
+      imageSource: sourceChoice.imageSource,
       prompt,
-      image: getImageReference({ mode: this.mode, localPath: this.localPath, remoteUrl: this.remoteUrl }),
-      imageUrl: this.mode === "remote_url" ? this.remoteUrl : "",
-      localPath: this.mode === "local_generated_asset" ? this.localPath : "",
-      aiHook: this.mode === "future_ai_hook"
+      image: sourceChoice.image,
+      imageUrl: sourceChoice.imageUrl,
+      localPath: sourceChoice.localPath,
+      sourceMedia: sourceChoice.sourceMedia,
+      sourcePlatform: sourceChoice.sourceMedia?.sourcePlatform || "",
+      sourcePostUrl: sourceChoice.sourceMedia?.sourcePostUrl || "",
+      sourceAuthor: sourceChoice.sourceMedia?.sourceAuthor || "",
+      sourceMediaUrl: sourceChoice.sourceMedia?.sourceMediaUrl || sourceChoice.imageUrl || "",
+      sourceMediaType: sourceChoice.sourceMedia?.mediaType || "",
+      sourceBacklink: sourceChoice.sourceMedia?.sourceBacklink || "",
+      aiHook: sourceChoice.mode === "future_ai_hook"
         ? { status: "reserved", note: "Future AI image generation hook; no image generated in dry-wire mode." }
         : null,
       qualityScore: quality.total,
@@ -101,7 +121,7 @@ export function scoreVisualIdentity({ prompt = "", artifact = {}, narrative = {}
   };
 }
 
-export function validateImageAsset({ mode, prompt = "", localPath = "", remoteUrl = "", quality, artifact = {} }) {
+export function validateImageAsset({ mode, prompt = "", localPath = "", remoteUrl = "", quality, artifact = {}, sourceChoice = {} }) {
   const errors = [];
   const warnings = [];
   const lowerPrompt = String(prompt || "").toLowerCase();
@@ -120,7 +140,16 @@ export function validateImageAsset({ mode, prompt = "", localPath = "", remoteUr
     warnings.push("weak_artifact_context");
   }
 
-  if (mode === "placeholder") {
+  if (sourceChoice.mode === "source_media" && !sourceChoice.sourceValidation?.valid) {
+    errors.push("source_media_validation_failed");
+  }
+  if (sourceChoice.mode === "source_media" && !sourceChoice.dryWire && !sourceChoice.enableSourceMediaHotlink) {
+    errors.push("source_media_hotlink_disabled");
+  }
+
+  if (mode === "source_media") {
+    if (!remoteUrl || !isValidHttpsUrl(remoteUrl)) errors.push("source_media_url_invalid");
+  } else if (mode === "placeholder") {
     errors.push("placeholder_image_not_launch_ready");
   } else if (mode === "local_generated_asset") {
     if (!localPath) errors.push("local_image_path_missing");
@@ -147,6 +176,39 @@ function getImageState({ mode, validation }) {
   if (validation.valid) return IMAGE_STATES.IMAGE_READY;
   if (mode === "placeholder" || mode === "future_ai_hook") return IMAGE_STATES.IMAGE_NEEDED;
   return IMAGE_STATES.VALIDATION_FAILED;
+}
+
+function chooseImageSource({ mode, selectedMedia, localPath, remoteUrl, dryWire, enableSourceMediaHotlink }) {
+  const sourceMedia = selectedMedia?.candidate || null;
+  const sourceValidation = selectedMedia?.validation || { valid: false, errors: ["source_media_missing"], warnings: [] };
+  if (sourceMedia && sourceValidation.valid && (dryWire || enableSourceMediaHotlink)) {
+    return {
+      mode: "source_media",
+      assetType: sourceMedia.assetType === "photo" || sourceMedia.assetType === "cover_image" ? "source_image" : "source_video_thumbnail",
+      imageSource: sourceMedia.assetType === "photo" || sourceMedia.assetType === "cover_image" ? "SOURCE POST MEDIA" : "SOURCE VIDEO THUMBNAIL",
+      image: sourceMedia.url || sourceMedia.previewImageUrl,
+      imageUrl: sourceMedia.url || sourceMedia.previewImageUrl,
+      localPath: "",
+      sourceMedia,
+      sourceValidation,
+      dryWire,
+      enableSourceMediaHotlink,
+    };
+  }
+
+  if (mode === "local_generated_asset") {
+    return { mode, assetType: "generated_image", imageSource: "LOCAL GENERATED ASSET", image: localPath, imageUrl: "", localPath, sourceMedia, sourceValidation, dryWire, enableSourceMediaHotlink };
+  }
+  if (mode === "remote_url") {
+    return { mode, assetType: "generated_image", imageSource: "REMOTE GENERATED ASSET", image: remoteUrl, imageUrl: remoteUrl, localPath: "", sourceMedia, sourceValidation, dryWire, enableSourceMediaHotlink };
+  }
+  if (sourceMedia && !sourceValidation.valid) {
+    return { mode: "future_ai_hook", assetType: "remixed_image", imageSource: "REMIX FROM SOURCE PROMPT", image: "", imageUrl: "", localPath: "", sourceMedia, sourceValidation, dryWire, enableSourceMediaHotlink };
+  }
+  if (mode === "future_ai_hook") {
+    return { mode, assetType: "generated_image", imageSource: "GENERATED FALLBACK", image: "", imageUrl: "", localPath: "", sourceMedia, sourceValidation, dryWire, enableSourceMediaHotlink };
+  }
+  return { mode: "placeholder", assetType: "placeholder", imageSource: "PLACEHOLDER DRY-WIRE", image: "", imageUrl: "", localPath: "", sourceMedia, sourceValidation, dryWire, enableSourceMediaHotlink };
 }
 
 function getImageReference({ mode, localPath, remoteUrl }) {
