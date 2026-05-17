@@ -12,6 +12,7 @@
     "dashboard": "node src/scripts/dashboard.js",
     "test-alert": "node src/scripts/testAlert.js",
     "test-launch-created": "node src/scripts/testLaunchCreatedAlert.js",
+    "test-hosted-assets": "node src/scripts/testHostedAssets.js",
     "test-launch": "node src/scripts/testLaunchBrief.js",
     "test-launch-adapter": "node src/scripts/testLaunchAdapter.js",
     "test-live-metadata-rules": "node src/scripts/testLiveMetadataRules.js",

@@ -68,6 +68,10 @@ export const config = {
     jsonBaseUrl: optional("METADATA_JSON_BASE_URL", "https://assets.oink.bot/dry-wire/metadata"),
     downloadRemoteImages: optionalBool("METADATA_DOWNLOAD_REMOTE_IMAGES", true),
     liveStrictMode: optionalBool("LIVE_METADATA_STRICT_MODE", optionalBool("ENABLE_REAL_LAUNCHES", false)),
+    assetHostingProvider: optional("ASSET_HOSTING_PROVIDER", "local"),
+    hostedAssetBaseUrl: optional("HOSTED_ASSET_BASE_URL", "https://assets.oink.bot/local"),
+    assetLocalDir: optional("ASSET_LOCAL_DIR", ".oink-assets"),
+    assetUploadRetries: optionalInt("ASSET_UPLOAD_RETRIES", "2"),
   },
   providers: {
     tiktok: optionalBool("ENABLE_TIKTOK_PROVIDER", true),

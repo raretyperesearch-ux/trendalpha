@@ -88,4 +88,4 @@ console.log(`Image errors: ${hosted.imageReview.errors.join(", ") || "none"}`);
 console.log(`Metadata errors: ${hosted.metadataValidation.errors.join(", ") || "none"}`);
 
 if (!hosted.metadataValidation.valid) process.exitCode = 1;
-if (!hosted.metadataJson.image.startsWith("https://assets.oink.bot/dry-wire/")) process.exitCode = 1;
+if (!hosted.metadataJson.image.startsWith("https://assets.oink.bot/local/metadata_safe/")) process.exitCode = 1;

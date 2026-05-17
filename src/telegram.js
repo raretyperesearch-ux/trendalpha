@@ -652,6 +652,30 @@ export function formatMetadataReadyAlert(deploymentAttempt) {
   return constrainTelegramMessage(msg);
 }
 
+export function formatHostedAssetDiagnostics(deploymentAttempt) {
+  const payload = deploymentAttempt.payload || {};
+  const asset = payload.metadata?.imageUpload || {};
+  const score = asset.artifactScore || asset.imageQualityReview?.artifactScore || {};
+  const frozen = Boolean(asset.metadataFrozen || payload.hostedMetadata?.frozenPackage);
+
+  let msg = `🐷 <b>OINK ASSET READY</b>\n\n`;
+  msg += `Ticker:\n<b>$${escapeHtml(deploymentAttempt.ticker || payload.token?.symbol || "OINK")}</b>\n\n`;
+  msg += `Image:\n<b>${asset.uploadedImageUrl || asset.imageUrl ? "HOSTED" : "NOT HOSTED"}</b>\n\n`;
+  msg += `Thumbnail:\n<b>${asset.thumbnailUrl ? "READY" : "MISSING"}</b>\n\n`;
+  msg += `Meme Readability:\n<b>${escapeHtml(score.memeReadabilityLabel || "UNKNOWN")}</b>\n\n`;
+  msg += `Metadata:\n<b>${frozen ? "FROZEN" : "NOT FROZEN"}</b>\n\n`;
+  msg += `Mode:\n<b>${escapeHtml(deploymentAttempt.mode || "DRY-WIRE")}</b>\n\n`;
+  msg += `<code>`;
+  msg += `Provider:  ${asset.uploadProvider || "n/a"}\n`;
+  msg += `Status:    ${asset.uploadStatus || asset.validationStatus || "draft"}\n`;
+  msg += `MIME:      ${asset.mimeType || "n/a"}\n`;
+  msg += `Size:      ${Number(asset.width || 0)}x${Number(asset.height || 0)}\n`;
+  msg += `Hash:      ${asset.hash || asset.frozenPackageHash || "n/a"}`;
+  msg += `</code>\n\n`;
+  msg += `<i>Asset hosting is prepared for review. Real launches remain disabled.</i>`;
+  return constrainTelegramMessage(msg);
+}
+
 export function formatDeploymentReadyAlert(deploymentAttempt) {
   const payload = deploymentAttempt.payload || {};
   const context = payload.launchContext || {};

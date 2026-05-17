@@ -196,6 +196,8 @@ Source media is validated before use. OINK rejects missing or non-HTTPS URLs, ti
 
 Before PumpPortal metadata is considered hosted-ready, OINK prepares a rehosted image asset. In dry-wire mode this means downloading or simulating the selected image, fingerprinting it, reviewing MIME type, byte size, dimensions, aspect ratio, and quality, then building final token metadata JSON that points at an OINK-hosted HTTPS asset URL. Source X/TikTok URLs stay as attribution fields; they are not used as final live image URLs.
 
+The hosted asset pipeline supports local storage, temporary CDN preparation, future IPFS, and future PumpPortal-native upload adapters. It creates a metadata-safe PNG, a square launch image, and a resized thumbnail, then freezes an immutable deployment package with hosted image URL, thumbnail URL, metadata URL, content hash, MIME, dimensions, upload provider, upload status, and artifact scores.
+
 When `ENABLE_REAL_LAUNCHES=true`, `LIVE_METADATA_STRICT_MODE` defaults on. Strict mode rejects synthetic dry-wire downloads, requires an actual downloaded/rehosted source or generated image, and requires a real upload target such as Pinata/IPFS, Arweave, or a PumpPortal upload endpoint before metadata can be considered live-eligible. The current provider classes are interfaces only; no real upload credentials, wallets, or broadcasts are enabled.
 
 Placeholder and unresolved AI-hook images can remain in draft review, but they cannot become metadata-ready. Generic, corporate, overly realistic, unrelated, or weak-silhouette prompts are rejected before deployment readiness.
@@ -306,6 +308,7 @@ npm run scan:dry
 npm run test-launch
 npm run test-launch-created
 npm run test-launch-adapter
+npm run test-hosted-assets
 npm run test-metadata
 npm run test-image-pipeline
 npm run test-pumpportal

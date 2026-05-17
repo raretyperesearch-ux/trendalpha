@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { deflateSync } from "node:zlib";
 import { config } from "./config.js";
+import { createAssetHostingProvider } from "./assetHosting.js";
 
 const SUPPORTED_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -15,7 +16,7 @@ export class MetadataUploadProvider {
     this.metadataBaseUrl = options.metadataBaseUrl || config.metadata.jsonBaseUrl;
   }
 
-  async uploadImage({ buffer, mimeType, hash, extension, imageAsset }) {
+  async uploadImage({ buffer, mimeType, hash, extension, imageAsset, hostedImageUrl = "" }) {
     if (this.provider !== "dry_wire") {
       throw new Error(`Metadata upload provider ${this.provider} is not implemented in dry-wire mode`);
     }
@@ -24,7 +25,7 @@ export class MetadataUploadProvider {
       provider: this.provider,
       status: "prepared",
       uploaded: false,
-      hostedImageUrl: `${this.assetBaseUrl.replace(/\/$/, "")}/${hash}.${extension}`,
+      hostedImageUrl: hostedImageUrl || `${this.assetBaseUrl.replace(/\/$/, "")}/${hash}.${extension}`,
       storageKey: `dry-wire/images/${hash}.${extension}`,
       byteSize: buffer.length,
       mimeType,
@@ -106,6 +107,7 @@ export class ImageDownloadRehostPipeline {
     this.liveMode = options.liveMode ?? Boolean(options.enableRealLaunches);
     this.strictMode = options.strictMode ?? config.metadata.liveStrictMode;
     this.uploadProvider = options.uploadProvider || createMetadataUploadProvider(options);
+    this.assetHostingProvider = options.assetHostingProvider || createAssetHostingProvider(options.assetHosting || options);
   }
 
   async prepare({ deploymentAttempt }) {
@@ -117,16 +119,24 @@ export class ImageDownloadRehostPipeline {
       liveMode: this.liveMode,
       strictMode: this.strictMode,
     });
+    const optimized = optimizeImageArtifacts({ download, imageReview, imageAsset });
+    const artifactScore = scoreImageArtifact({ imageReview, imageAsset, optimized });
+    imageReview.artifactScore = artifactScore;
 
     let upload = null;
+    let hostedAssets = null;
     if (imageValidation.valid) {
+      hostedAssets = await this.hostOptimizedAssets({ optimized, imageReview, imageAsset });
+      const metadataSafe = hostedAssets.metadataSafe || hostedAssets.original;
       upload = await this.uploadProvider.uploadImage({
-        buffer: download.buffer,
+        buffer: optimized.metadataSafe.buffer,
         mimeType: imageReview.mimeType,
         hash: imageReview.hash,
-        extension: imageReview.extension,
+        extension: optimized.metadataSafe.extension,
         imageAsset,
+        hostedImageUrl: metadataSafe?.url,
       });
+      if (metadataSafe?.url) upload.hostedImageUrl = metadataSafe.url;
     }
 
     const metadataJson = buildPumpPortalMetadataJson({
@@ -144,42 +154,61 @@ export class ImageDownloadRehostPipeline {
 
     let metadataUpload = null;
     if (metadataValidation.valid) {
-      metadataUpload = await this.uploadProvider.uploadMetadata({
-        metadataJson,
-        hash: hashText(JSON.stringify(metadataJson)),
+      const metadataHash = hashText(JSON.stringify(metadataJson));
+      metadataUpload = await this.assetHostingProvider.uploadAsset({
+        buffer: Buffer.from(JSON.stringify(metadataJson, null, 2)),
+        filename: `${metadataHash}.json`,
+        contentType: "application/json",
+        kind: "metadata",
+        hash: metadataHash,
       });
+      metadataUpload.metadataUrl = metadataUpload.url;
     }
 
     const report = buildMetadataDryRunReport({
       metadataJson,
       metadataUpload,
       imageUpload: upload,
+      hostedAssets,
       imageAsset,
       imageReview,
       metadataValidation,
       liveMode: this.liveMode,
       strictMode: this.strictMode,
     });
+    const frozenPackage = metadataValidation.valid
+      ? freezeMetadataPackage({ metadataJson, metadataUpload, hostedAssets, imageReview, report })
+      : null;
 
     return {
       state: metadataValidation.valid ? "metadata_hosted_ready" : "metadata_hosting_failed",
       imageReview,
+      artifactScore,
       imageValidation,
       imageUpload: upload,
+      hostedAssets,
       metadataJson,
       metadataValidation,
       metadataUpload,
       report,
+      frozenPackage,
       launchAsset: {
         ...imageAsset,
         imageUrl: upload?.hostedImageUrl || "",
         uploadedImageUrl: upload?.hostedImageUrl || "",
+        thumbnailUrl: hostedAssets?.thumbnail?.url || "",
         metadataUrl: metadataUpload?.metadataUrl || "",
+        metadataFrozen: Boolean(frozenPackage),
+        frozenPackageHash: frozenPackage?.packageHash || "",
+        hash: imageReview.hash,
+        uploadProvider: hostedAssets?.provider || upload?.provider || "",
+        uploadStatus: hostedAssets?.status || upload?.status || "not_prepared",
         mimeType: imageReview.mimeType,
         byteSize: imageReview.byteSize,
         width: imageReview.width,
         height: imageReview.height,
         imageQualityReview: imageReview,
+        artifactScore,
         liveEligible: report.liveEligible,
         liveEligibilityReasons: report.liveEligibilityReasons,
         validationStatus: metadataValidation.valid ? "metadata_ready" : "validation_failed",
@@ -210,6 +239,29 @@ export class ImageDownloadRehostPipeline {
     const arrayBuffer = await res.arrayBuffer();
     return { buffer: Buffer.from(arrayBuffer), source: "remote_url", url: imageUrl };
   }
+
+  async hostOptimizedAssets({ optimized, imageReview }) {
+    const uploads = {};
+    for (const artifact of [optimized.original, optimized.metadataSafe, optimized.square, optimized.thumbnail]) {
+      uploads[artifact.kind] = await this.assetHostingProvider.uploadAsset({
+        buffer: artifact.buffer,
+        filename: artifact.filename,
+        contentType: artifact.mimeType,
+        kind: artifact.kind,
+        hash: artifact.hash,
+      });
+    }
+    return {
+      provider: this.assetHostingProvider.provider,
+      capabilities: this.assetHostingProvider.capabilities(),
+      status: Object.values(uploads).every((item) => item.uploaded || item.status === "prepared") ? "uploaded" : "partial",
+      hash: imageReview.hash,
+      original: uploads.original,
+      metadataSafe: uploads.metadata_safe,
+      square: uploads.square,
+      thumbnail: uploads.thumbnail,
+    };
+  }
 }
 
 export async function prepareHostedPumpPortalMetadata(deploymentAttempt, options = {}) {
@@ -232,6 +284,8 @@ export function buildPumpPortalMetadataJson({ metadata = {}, deploymentAttempt =
       { trait_type: "Source Backlink", value: metadata.sourceBacklink || "" },
       { trait_type: "Image MIME", value: imageReview.mimeType || "" },
       { trait_type: "Image Quality", value: imageReview.qualityLabel || "UNKNOWN" },
+      { trait_type: "Thumbnail Strength", value: imageReview.artifactScore?.thumbnailStrengthLabel || "UNKNOWN" },
+      { trait_type: "Meme Readability", value: imageReview.artifactScore?.memeReadabilityLabel || "UNKNOWN" },
     ],
     oink: {
       narrativeSummary: metadata.narrativeSummary || "",
@@ -239,6 +293,7 @@ export function buildPumpPortalMetadataJson({ metadata = {}, deploymentAttempt =
       identityArchetype: metadata.identityArchetype || "trendwave",
       sloganFragments: metadata.sloganFragments || [],
       imageReview,
+      artifactScore: imageReview.artifactScore || {},
       dryWire: !imageReview.liveMode,
       liveEligible: Boolean(imageReview.liveEligible),
     },
@@ -271,9 +326,9 @@ export function reviewImageBytes(download, imageAsset = {}) {
 
   if (!SUPPORTED_MIME_TYPES.has(detected.mimeType)) errors.push("unsupported_mime_type");
   if (buffer.length > MAX_IMAGE_BYTES) errors.push("image_too_large");
+  if (!detected.width || !detected.height) errors.push("image_dimensions_missing_or_corrupt");
   if (detected.width && detected.width < MIN_DIMENSION) errors.push("image_width_too_small");
   if (detected.height && detected.height < MIN_DIMENSION) errors.push("image_height_too_small");
-  if (!detected.width || !detected.height) warnings.push("dimensions_unavailable");
   if (aspectRatio && (aspectRatio < 0.45 || aspectRatio > 2.2)) warnings.push("aspect_ratio_extreme");
   if (imageAsset.assetType === "placeholder") errors.push("placeholder_not_rehostable");
 
@@ -307,6 +362,103 @@ export function reviewImageBytes(download, imageAsset = {}) {
   };
 }
 
+export function optimizeImageArtifacts({ download, imageReview }) {
+  const extension = imageReview.extension || "bin";
+  const original = {
+    kind: "original",
+    buffer: download.buffer,
+    mimeType: imageReview.mimeType,
+    extension,
+    hash: imageReview.hash,
+    filename: `${imageReview.hash}-original.${extension}`,
+  };
+  const metadataSafe = createDerivativePng({
+    hash: imageReview.hash,
+    kind: "metadata_safe",
+    size: 1024,
+  });
+  const square = createDerivativePng({
+    hash: imageReview.hash,
+    kind: "square",
+    size: 1024,
+  });
+  const thumbnail = createDerivativePng({
+    hash: imageReview.hash,
+    kind: "thumbnail",
+    size: 512,
+  });
+  return {
+    original,
+    metadataSafe,
+    square,
+    thumbnail,
+    notes: [
+      "metadata_safe_png_generated",
+      "square_launch_format_generated",
+      "thumbnail_generated",
+    ],
+  };
+}
+
+export function scoreImageArtifact({ imageReview = {}, imageAsset = {}, optimized = {} }) {
+  const promptText = `${imageAsset.prompt || ""} ${imageAsset.imageSource || ""}`.toLowerCase();
+  const hasSourceMedia = /source/.test(promptText) || ["source_image", "source_video_thumbnail"].includes(imageAsset.assetType);
+  const hasMascot = /(mascot|character|symbol|silhouette|sticker|object|artifact)/.test(promptText);
+  const squareReady = Boolean(optimized.square?.buffer);
+  const thumbnailReady = Boolean(optimized.thumbnail?.buffer);
+  const dimensionsGood = imageReview.width >= 512 && imageReview.height >= 512;
+  const aspectGood = imageReview.aspectRatio >= 0.75 && imageReview.aspectRatio <= 1.35;
+  const thumbnailStrength = clampScore(35 + (thumbnailReady ? 25 : 0) + (dimensionsGood ? 20 : 0) + (aspectGood ? 15 : 0));
+  const memeReadability = clampScore(35 + (hasSourceMedia ? 20 : 0) + (hasMascot ? 25 : 0) + (squareReady ? 10 : 0));
+  const silhouetteClarity = clampScore(30 + (hasMascot ? 30 : 0) + (squareReady ? 15 : 0));
+  const remixability = clampScore(35 + (hasSourceMedia ? 20 : 0) + (thumbnailReady ? 15 : 0));
+  const visualIdentityCohesion = clampScore(35 + (hasSourceMedia ? 20 : 0) + (hasMascot ? 20 : 0) + (imageReview.qualityScore >= 75 ? 10 : 0));
+  const total = Math.round(
+    thumbnailStrength * 0.2 +
+    memeReadability * 0.22 +
+    silhouetteClarity * 0.18 +
+    remixability * 0.18 +
+    visualIdentityCohesion * 0.22
+  );
+  return {
+    thumbnailStrength,
+    thumbnailStrengthLabel: labelScore(thumbnailStrength),
+    memeReadability,
+    memeReadabilityLabel: labelScore(memeReadability),
+    silhouetteClarity,
+    silhouetteClarityLabel: labelScore(silhouetteClarity),
+    remixability,
+    remixabilityLabel: labelScore(remixability),
+    visualIdentityCohesion,
+    visualIdentityCohesionLabel: labelScore(visualIdentityCohesion),
+    total,
+    label: labelScore(total),
+  };
+}
+
+export function freezeMetadataPackage({ metadataJson, metadataUpload, hostedAssets, imageReview, report }) {
+  const frozenAt = new Date().toISOString();
+  const immutable = {
+    frozenAt,
+    metadataUrl: metadataUpload?.metadataUrl || "",
+    imageUrl: metadataJson.image,
+    thumbnailUrl: hostedAssets?.thumbnail?.url || "",
+    metadataHash: hashText(JSON.stringify(metadataJson)),
+    imageHash: imageReview.hash,
+    packageHash: "",
+    metadataJson,
+    hostedAssetReferences: {
+      original: hostedAssets?.original?.url || "",
+      metadataSafe: hostedAssets?.metadataSafe?.url || "",
+      square: hostedAssets?.square?.url || "",
+      thumbnail: hostedAssets?.thumbnail?.url || "",
+    },
+    report,
+  };
+  immutable.packageHash = hashText(JSON.stringify(immutable));
+  return Object.freeze(immutable);
+}
+
 function validateImageReview(review, { liveMode = false, strictMode = false } = {}) {
   const errors = [...review.errors];
   const warnings = [...review.warnings];
@@ -325,6 +477,7 @@ export function buildMetadataDryRunReport({
   metadataJson = {},
   metadataUpload = null,
   imageUpload = null,
+  hostedAssets = null,
   imageAsset = {},
   imageReview = {},
   metadataValidation = {},
@@ -340,6 +493,7 @@ export function buildMetadataDryRunReport({
   return {
     finalImageUrl: metadataJson.image || "",
     metadataUrl: metadataUpload?.metadataUrl || "",
+    thumbnailUrl: hostedAssets?.thumbnail?.url || "",
     imageSource: imageAsset.imageSource || imageReview.source || "",
     imageReviewSource: imageReview.source || "",
     uploadProvider: imageUpload?.provider || "",
@@ -375,6 +529,21 @@ function detectImage(buffer) {
     return detectJpeg(buffer);
   }
   return { mimeType: "application/octet-stream", extension: "bin", width: 0, height: 0 };
+}
+
+function createDerivativePng({ hash, kind, size }) {
+  const buffer = createSyntheticPng(`${hash}${kind}`, size);
+  const derivativeHash = hashBuffer(buffer);
+  return {
+    kind: kind === "thumbnail" ? "thumbnail" : kind === "square" ? "square" : "metadata_safe",
+    buffer,
+    mimeType: "image/png",
+    extension: "png",
+    hash: derivativeHash,
+    width: size,
+    height: size,
+    filename: `${hash}-${kind}.png`,
+  };
 }
 
 function detectJpeg(buffer) {
@@ -413,15 +582,15 @@ function createDryWirePlaceholderBytes(imageAsset) {
   const seed = `${imageAsset.launchId || ""}:${imageAsset.ticker || ""}:${imageAsset.imageUrl || imageAsset.image || ""}`;
   const hash = hashText(seed);
   return {
-    buffer: createSyntheticPng(hash),
+    buffer: createSyntheticPng(hash, 512),
     source: "dry_wire_synthetic_download",
     url: imageAsset.imageUrl || imageAsset.image || "",
   };
 }
 
-function createSyntheticPng(hash) {
-  const width = 512;
-  const height = 512;
+function createSyntheticPng(hash, size = 512) {
+  const width = size;
+  const height = size;
   const color = Buffer.from(hash.slice(0, 6), "hex");
   const header = Buffer.from("89504e470d0a1a0a", "hex");
   const ihdr = pngChunk("IHDR", Buffer.concat([
@@ -488,4 +657,10 @@ function isHttpsUrl(url) {
 
 function clampScore(value) {
   return Math.max(0, Math.min(100, Math.round(Number(value || 0))));
+}
+
+function labelScore(score) {
+  if (score >= 80) return "HIGH";
+  if (score >= 60) return "MEDIUM";
+  return "LOW";
 }
