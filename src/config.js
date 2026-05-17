@@ -63,6 +63,10 @@ export const config = {
     imageLocalPath: optional("IMAGE_ASSET_LOCAL_PATH", ""),
     imageRemoteUrl: optional("IMAGE_ASSET_REMOTE_URL", ""),
     enableSourceMediaHotlink: optionalBool("ENABLE_SOURCE_MEDIA_HOTLINK", false),
+    uploadProvider: optional("METADATA_UPLOAD_PROVIDER", "dry_wire"),
+    assetBaseUrl: optional("METADATA_ASSET_BASE_URL", "https://assets.oink.bot/dry-wire"),
+    jsonBaseUrl: optional("METADATA_JSON_BASE_URL", "https://assets.oink.bot/dry-wire/metadata"),
+    downloadRemoteImages: optionalBool("METADATA_DOWNLOAD_REMOTE_IMAGES", true),
   },
   providers: {
     tiktok: optionalBool("ENABLE_TIKTOK_PROVIDER", true),

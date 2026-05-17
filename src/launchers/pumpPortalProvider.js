@@ -1,5 +1,6 @@
 import { config } from "../config.js";
 import { prepareLaunchMetadata } from "../metadataPipeline.js";
+import { prepareHostedPumpPortalMetadata } from "../metadataAssets.js";
 
 const DEPLOYMENT_STATES = {
   PREPARING: "preparing",
@@ -82,6 +83,10 @@ export class PumpPortalProvider {
       auditLog,
       createdAt: new Date().toISOString(),
     };
+  }
+
+  async prepareMetadataPackage(deploymentAttempt) {
+    return prepareHostedPumpPortalMetadata(deploymentAttempt);
   }
 
   buildDeploymentPayload(shadowLaunch) {
@@ -193,6 +198,10 @@ export class PumpPortalProvider {
 
 export function preparePumpPortalDeployment(shadowLaunch, options = {}) {
   return new PumpPortalProvider(options).prepareDeployment(shadowLaunch);
+}
+
+export async function preparePumpPortalMetadataPackage(deploymentAttempt, options = {}) {
+  return prepareHostedPumpPortalMetadata(deploymentAttempt, options);
 }
 
 function audit(stage, status, message) {

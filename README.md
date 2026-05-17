@@ -192,6 +192,8 @@ For X posts, OINK can extract photo media plus video or animated GIF preview thu
 
 Source media is validated before use. OINK rejects missing or non-HTTPS URLs, tiny assets, likely profile images, unsupported file types, and dimensions unsuitable for launch metadata. Dry-wire mode can store source URLs for review, but live hotlinking stays disabled unless `ENABLE_SOURCE_MEDIA_HOTLINK=true`.
 
+Before PumpPortal metadata is considered hosted-ready, OINK prepares a rehosted image asset. In dry-wire mode this means downloading or simulating the selected image, fingerprinting it, reviewing MIME type, byte size, dimensions, aspect ratio, and quality, then building final token metadata JSON that points at an OINK-hosted HTTPS asset URL. Source X/TikTok URLs stay as attribution fields; they are not used as final live image URLs.
+
 Placeholder and unresolved AI-hook images can remain in draft review, but they cannot become metadata-ready. Generic, corporate, overly realistic, unrelated, or weak-silhouette prompts are rejected before deployment readiness.
 
 When live providers are unavailable, `MEMORY_ONLY_LAUNCH_TEST_MODE=true` lets OINK load recent high-quality `narrative_cluster_snapshots`, generate dry-run PumpPortal payloads, persist them to `shadow_launches`, and send `OINK PREPARE LAUNCH` Telegram alerts. It only uses stored narrative memory and never broadcasts a launch.
@@ -302,6 +304,7 @@ npm run test-launch-created
 npm run test-metadata
 npm run test-image-pipeline
 npm run test-pumpportal
+npm run test-pumpportal-metadata
 npm run test-source-media
 npm run test-telegram-alert
 npm run test-shadow-launches

@@ -16,6 +16,7 @@
     "test-metadata": "node src/scripts/testMetadataPipeline.js",
     "test-image-pipeline": "node src/scripts/testImagePipeline.js",
     "test-pumpportal": "node src/scripts/testPumpPortalProvider.js",
+    "test-pumpportal-metadata": "node src/scripts/testPumpPortalMetadata.js",
     "test-source-media": "node src/scripts/testSourceMedia.js",
     "test-telegram-alert": "node src/scripts/testTelegramAlert.js",
     "test-shadow-launches": "node src/scripts/testShadowLaunches.js",

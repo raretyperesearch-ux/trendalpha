@@ -1,4 +1,4 @@
-import { preparePumpPortalDeployment } from "./launchers/pumpPortalProvider.js";
+import { preparePumpPortalDeployment, preparePumpPortalMetadataPackage } from "./launchers/pumpPortalProvider.js";
 import { saveDeploymentAttempt, saveLaunchAsset } from "./db.js";
 import { sendDeploymentReadyAlert, sendMetadataReadyAlert } from "./telegram.js";
 
@@ -7,6 +7,15 @@ export async function prepareAndPersistDeploymentAttempt(shadowLaunch, {
   sendTelegram = true,
 } = {}) {
   const deploymentAttempt = preparePumpPortalDeployment(shadowLaunch, { existingTickers });
+  const hostedMetadata = await prepareHostedMetadataForAttempt(deploymentAttempt);
+  if (hostedMetadata) {
+    deploymentAttempt.payload.hostedMetadata = hostedMetadata;
+    if (hostedMetadata.metadataValidation.valid) {
+      deploymentAttempt.payload.metadata.image = hostedMetadata.metadataJson.image;
+      deploymentAttempt.payload.metadata.hostedMetadataUrl = hostedMetadata.metadataUpload?.metadataUrl || "";
+      deploymentAttempt.payload.metadata.imageUpload = hostedMetadata.launchAsset;
+    }
+  }
 
   logDeploymentAttempt(deploymentAttempt);
   const saved = await saveDeploymentAttempt(deploymentAttempt);
@@ -22,6 +31,22 @@ export async function prepareAndPersistDeploymentAttempt(shadowLaunch, {
   }
 
   return deploymentAttempt;
+}
+
+async function prepareHostedMetadataForAttempt(deploymentAttempt) {
+  try {
+    if (!deploymentAttempt.payload?.metadata?.imageUpload) return null;
+    const hosted = await preparePumpPortalMetadataPackage(deploymentAttempt);
+    if (hosted.metadataValidation.valid) {
+      console.log(`   🖼️  Hosted metadata prepared: ${hosted.metadataUpload?.metadataUrl || "dry-wire"}`);
+      return hosted;
+    }
+    console.log(`   ⚠️  Hosted metadata not ready: ${hosted.metadataValidation.errors.join(", ") || hosted.imageValidation.errors.join(", ")}`);
+    return hosted;
+  } catch (err) {
+    console.warn(`   ⚠️  Hosted metadata preparation skipped: ${err.message}`);
+    return null;
+  }
 }
 
 function logDeploymentAttempt(attempt) {
