@@ -327,6 +327,8 @@ Wallet isolation is modeled with strict roles:
 
 These are capability boundaries only. OINK uses env-based key stubs for architecture tests, keeps `SIGNER_DISABLED=true` by default, and does not load funded private keys.
 
+Public wallet addresses can be configured for diagnostics with `DEPLOY_WALLET_PUBLIC_KEY`, `TREASURY_WALLET_PUBLIC_KEY`, `FEE_WALLET_PUBLIC_KEY`, and `MONITORING_WALLET_PUBLIC_KEY`. OINK validates Solana public key format, warns when the same address is reused across roles, and only hard-fails wallet config when real launches are explicitly enabled.
+
 The observation queue keeps dry-run launches reviewable before autonomy. Candidates can be queued, approved, rejected, expired, voted on for launch quality, and marked with `would_launch_again` calibration data.
 
 ## Local Commands
@@ -348,6 +350,7 @@ npm run test-telegram-alert
 npm run test-shadow-launches
 npm run test-transaction-sim
 npm run test-wallet-architecture
+npm run test-wallet-config
 npm run test-observation-queue
 npm run test-x
 npm run dashboard

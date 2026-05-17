@@ -21,6 +21,107 @@ const optionalList = (key) => {
     .filter(Boolean);
 };
 
+const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+const WALLET_ROLE_KEYS = [
+  ["deploy_wallet", "DEPLOY_WALLET_PUBLIC_KEY"],
+  ["treasury_wallet", "TREASURY_WALLET_PUBLIC_KEY"],
+  ["fee_wallet", "FEE_WALLET_PUBLIC_KEY"],
+  ["monitoring_wallet", "MONITORING_WALLET_PUBLIC_KEY"],
+];
+
+export function isValidSolanaPublicKey(value) {
+  const key = String(value || "").trim();
+  if (!key) return false;
+  if (![32, 44].includes(key.length) && (key.length < 32 || key.length > 44)) return false;
+  let bytes;
+  try {
+    bytes = decodeBase58(key);
+  } catch {
+    return false;
+  }
+  return bytes.length === 32;
+}
+
+function decodeBase58(value) {
+  const bytes = [0];
+  for (const char of value) {
+    const digit = BASE58_ALPHABET.indexOf(char);
+    if (digit < 0) throw new Error("invalid base58");
+    let carry = digit;
+    for (let i = 0; i < bytes.length; i += 1) {
+      carry += bytes[i] * 58;
+      bytes[i] = carry & 0xff;
+      carry >>= 8;
+    }
+    while (carry > 0) {
+      bytes.push(carry & 0xff);
+      carry >>= 8;
+    }
+  }
+  for (const char of value) {
+    if (char !== "1") break;
+    bytes.push(0);
+  }
+  return bytes.reverse();
+}
+
+function walletPublicKeyDiagnostics(wallets) {
+  const duplicates = new Map();
+  const diagnostics = WALLET_ROLE_KEYS.map(([role]) => {
+    const publicKey = wallets[role];
+    const configured = Boolean(publicKey);
+    const valid = configured ? isValidSolanaPublicKey(publicKey) : false;
+    return { role, publicKey, configured, valid, warnings: [] };
+  });
+
+  for (const item of diagnostics) {
+    if (!item.configured) continue;
+    const key = item.publicKey;
+    duplicates.set(key, [...(duplicates.get(key) || []), item.role]);
+    if (!item.valid) item.warnings.push("invalid_solana_public_key");
+  }
+
+  for (const roles of duplicates.values()) {
+    if (roles.length <= 1) continue;
+    for (const role of roles) {
+      const item = diagnostics.find((entry) => entry.role === role);
+      item?.warnings.push(`wallet_reused_across_roles:${roles.join(",")}`);
+    }
+  }
+
+  return diagnostics;
+}
+
+function validateWalletPublicConfig({ enableRealLaunches, wallets }) {
+  const diagnostics = walletPublicKeyDiagnostics(wallets);
+  const warnings = diagnostics.flatMap((item) => item.warnings.map((warning) => `${item.role}: ${warning}`));
+
+  for (const warning of warnings) {
+    console.warn(`⚠️ Wallet config warning: ${warning}`);
+  }
+
+  if (!enableRealLaunches) return diagnostics;
+
+  const failures = diagnostics
+    .filter((item) => !item.configured || !item.valid || item.warnings.some((warning) => warning.startsWith("wallet_reused")))
+    .map((item) => `${item.role}:${!item.configured ? "missing" : item.warnings.join("|") || "invalid"}`);
+
+  if (failures.length) {
+    throw new Error(`Wallet configuration invalid for ENABLE_REAL_LAUNCHES=true: ${failures.join(", ")}`);
+  }
+
+  return diagnostics;
+}
+
+const enableRealLaunches = optionalBool("ENABLE_REAL_LAUNCHES", false);
+const walletPublicKeys = {
+  deploy_wallet: optional("DEPLOY_WALLET_PUBLIC_KEY", "").trim(),
+  treasury_wallet: optional("TREASURY_WALLET_PUBLIC_KEY", "").trim(),
+  fee_wallet: optional("FEE_WALLET_PUBLIC_KEY", "").trim(),
+  monitoring_wallet: optional("MONITORING_WALLET_PUBLIC_KEY", "").trim(),
+};
+const walletDiagnostics = validateWalletPublicConfig({ enableRealLaunches, wallets: walletPublicKeys });
+
 export const config = {
   telegram: {
     botToken: required("TELEGRAM_BOT_TOKEN"),
@@ -48,7 +149,7 @@ export const config = {
     minLaunchScore: optionalInt("MIN_LAUNCH_SCORE", "82"),
     enableLaunchCandidates: optionalBool("ENABLE_LAUNCH_CANDIDATES", true),
     memoryOnlyLaunchTestMode: optionalBool("MEMORY_ONLY_LAUNCH_TEST_MODE", false),
-    enableRealLaunches: optionalBool("ENABLE_REAL_LAUNCHES", false),
+    enableRealLaunches,
     deploymentMinReadiness: optionalInt("DEPLOYMENT_MIN_LAUNCH_READINESS", "80"),
     deploymentMaxSwarmPressure: optionalInt("DEPLOYMENT_MAX_SWARM_PRESSURE", "40"),
     globalDisable: optionalBool("OINK_GLOBAL_LAUNCH_DISABLE", false),
@@ -61,6 +162,11 @@ export const config = {
   },
   wallets: {
     signerDisabled: optionalBool("SIGNER_DISABLED", true),
+    deployPublicKey: walletPublicKeys.deploy_wallet,
+    treasuryPublicKey: walletPublicKeys.treasury_wallet,
+    feePublicKey: walletPublicKeys.fee_wallet,
+    monitoringPublicKey: walletPublicKeys.monitoring_wallet,
+    publicKeyDiagnostics: walletDiagnostics,
   },
   metadata: {
     twitter: optional("OINK_TWITTER_URL", "https://x.com/oink"),

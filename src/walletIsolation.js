@@ -13,16 +13,30 @@ export class SignerIsolationManager {
   constructor({ disabled = config.wallets.signerDisabled } = {}) {
     this.disabled = disabled;
     this.signers = Object.fromEntries(WALLET_ROLES.map((role) => [role, loadSignerStub(role)]));
+    this.publicKeys = {
+      deploy_wallet: config.wallets.deployPublicKey,
+      treasury_wallet: config.wallets.treasuryPublicKey,
+      fee_wallet: config.wallets.feePublicKey,
+      monitoring_wallet: config.wallets.monitoringPublicKey,
+    };
   }
 
   getDiagnostics() {
-    return WALLET_ROLES.map((role) => ({
-      role,
-      loaded: this.signers[role].loaded,
-      capabilities: ROLE_CAPABILITIES[role],
-      enabled: !this.disabled && this.signers[role].loaded,
-      health: this.disabled ? "DISABLED" : this.signers[role].loaded ? "READY_STUB" : "MISSING_STUB",
-    }));
+    return WALLET_ROLES.map((role) => {
+      const publicKeyDiagnostic = config.wallets.publicKeyDiagnostics.find((item) => item.role === role);
+      return {
+        role,
+        publicKeyConfigured: Boolean(this.publicKeys[role]),
+        publicKeyValid: Boolean(publicKeyDiagnostic?.valid),
+        signerDisabled: this.disabled,
+        liveSignerReady: false,
+        warnings: publicKeyDiagnostic?.warnings || [],
+        loaded: this.signers[role].loaded,
+        capabilities: ROLE_CAPABILITIES[role],
+        enabled: !this.disabled && this.signers[role].loaded,
+        health: this.disabled ? "DISABLED" : this.signers[role].loaded ? "READY_STUB" : "MISSING_STUB",
+      };
+    });
   }
 
   can(role, capability) {

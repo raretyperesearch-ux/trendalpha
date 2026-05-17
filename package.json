@@ -20,6 +20,7 @@
     "test-saturation-safety": "node src/scripts/testSaturationSafety.js",
     "test-transaction-sim": "node src/scripts/testTransactionSim.js",
     "test-wallet-architecture": "node src/scripts/testWalletArchitecture.js",
+    "test-wallet-config": "node src/scripts/testWalletConfig.js",
     "test-observation-queue": "node src/scripts/testObservationQueue.js",
     "test-live-metadata-rules": "node src/scripts/testLiveMetadataRules.js",
     "test-metadata": "node src/scripts/testMetadataPipeline.js",
