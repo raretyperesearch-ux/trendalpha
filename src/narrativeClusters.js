@@ -1,4 +1,5 @@
 import { evaluateNarrativePhase } from "./narrativePhase.js";
+import { summarizeClusterArtifacts } from "./artifacts.js";
 
 const STOP_WORDS = new Set([
   "the", "this", "that", "with", "from", "have", "they", "what", "when",
@@ -58,6 +59,14 @@ export class NarrativeCluster {
     this.accelerationInflectionPoint = fields.accelerationInflectionPoint || "stable";
     this.missedWindow = Boolean(fields.missedWindow);
     this.earlyConviction = Boolean(fields.earlyConviction);
+    this.memeticArtifact = fields.memeticArtifact || null;
+    this.artifactStrength = fields.artifactStrength || 0;
+    this.sourceArtifactType = fields.sourceArtifactType || null;
+    this.visualReuseMode = fields.visualReuseMode || null;
+    this.extractedPhrase = fields.extractedPhrase || "";
+    this.emotionalTexture = fields.emotionalTexture || "";
+    this.identityCompressionSummary = fields.identityCompressionSummary || "";
+    this.artifactSuggestedTicker = fields.artifactSuggestedTicker || "";
   }
 }
 
@@ -149,6 +158,14 @@ export function serializeNarrativeCluster(cluster) {
     accelerationInflectionPoint: cluster.accelerationInflectionPoint,
     missedWindow: cluster.missedWindow,
     earlyConviction: cluster.earlyConviction,
+    memeticArtifact: cluster.memeticArtifact,
+    artifactStrength: cluster.artifactStrength,
+    sourceArtifactType: cluster.sourceArtifactType,
+    visualReuseMode: cluster.visualReuseMode,
+    extractedPhrase: cluster.extractedPhrase,
+    emotionalTexture: cluster.emotionalTexture,
+    identityCompressionSummary: cluster.identityCompressionSummary,
+    artifactSuggestedTicker: cluster.artifactSuggestedTicker,
   };
 }
 
@@ -177,6 +194,7 @@ function addPostToCluster(cluster, post, signals) {
 
   cluster.relatedPosts.push({
     id: post.id,
+    sourcePlatform: post.sourcePlatform || "x",
     name: post.name,
     sourceUrl: post.sourceUrl,
     author: post.author,
@@ -189,6 +207,14 @@ function addPostToCluster(cluster, post, signals) {
     viralShape: post.viralShape || "compounding",
     marketArchetype: post.marketArchetype || "trendwave",
     launchWorthinessScore: Number(post.launchWorthinessScore || 0),
+    memeticArtifact: post.memeticArtifact || null,
+    artifactStrength: Number(post.artifactStrength || 0),
+    sourceArtifactType: post.sourceArtifactType || null,
+    visualReuseMode: post.visualReuseMode || null,
+    extractedPhrase: post.extractedPhrase || "",
+    emotionalTexture: post.emotionalTexture || "",
+    identityCompressionSummary: post.identityCompressionSummary || "",
+    artifactSuggestedTicker: post.artifactSuggestedTicker || "",
   });
 
   cluster.totalAttention += Number(post.totalViews || 0);
@@ -216,6 +242,16 @@ function finalizeCluster(cluster, previousById) {
   cluster.lifecycleState = classifyLifecycle(cluster, previous);
   cluster.momentumTrend = classifyClusterMomentum(cluster, previous);
   cluster.archetype = chooseClusterArchetype(cluster);
+  cluster.memeticArtifact = summarizeClusterArtifacts(cluster);
+  if (cluster.memeticArtifact) {
+    cluster.artifactStrength = cluster.memeticArtifact.artifactStrength;
+    cluster.sourceArtifactType = cluster.memeticArtifact.artifactType;
+    cluster.visualReuseMode = cluster.memeticArtifact.visualReuseMode;
+    cluster.extractedPhrase = cluster.memeticArtifact.extractedPhrase;
+    cluster.emotionalTexture = cluster.memeticArtifact.emotionalTexture;
+    cluster.identityCompressionSummary = cluster.memeticArtifact.identityCompressionSummary;
+    cluster.artifactSuggestedTicker = cluster.memeticArtifact.suggestedTicker;
+  }
   cluster.launchWorthinessScore = scoreClusterLaunchWorthiness(cluster);
   const phase = evaluateNarrativePhase({
     ...cluster,

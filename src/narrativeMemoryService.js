@@ -36,6 +36,7 @@ export class NarrativeMemoryService {
       acceleration_score: intValue(cluster.accelerationSlope || cluster.accelerationDelta),
       snapshot: {
         ...serializeNarrativeCluster(cluster),
+        memeticArtifact: cluster.memeticArtifact || null,
         memoryAnalytics: analytics,
       },
       created_at: new Date().toISOString(),

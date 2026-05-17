@@ -1,8 +1,9 @@
 export function generateLaunchBrief({ trend, trendScore, launchScore, token }) {
   const sourcePlatform = trend.sourcePlatform || "tiktok";
   const cleanName = cleanTrendName(trend.name || trend.text || "");
-  const suggestedName = titleCase(selectStrongName(cleanName));
-  const suggestedTicker = buildTicker(suggestedName);
+  const artifact = trend.memeticArtifact || null;
+  const suggestedName = titleCase(artifact?.tokenIdentity || selectStrongName(cleanName));
+  const suggestedTicker = artifact?.suggestedTicker || buildTicker(suggestedName);
   const sourceUrl = getSourceUrl(trend, cleanName);
   const existingToken = token?.matchStatus === "canonical" ? { ...token } : null;
   const possibleMarket = token?.matchStatus === "possible" ? { ...token } : null;
@@ -24,6 +25,13 @@ export function generateLaunchBrief({ trend, trendScore, launchScore, token }) {
     firstTweet: `OINK spotted ${formatTrendName(trend.name)} moving through ${sourceLabel} before the market fully caught up. Watching ${suggestedName} as an attention-market candidate. $${suggestedTicker}`,
     telegramSummary: `${suggestedName} is a ${sourceLabel} attention spike with ${articleFor(launchScore.label)} ${launchScore.label} launch score (${launchScore.total}/100).`,
     imagePrompt: buildImagePrompt({ trend, suggestedName, suggestedTicker }),
+    memeticArtifact: artifact,
+    sourceArtifactType: artifact?.artifactType || null,
+    artifactStrength: artifact?.artifactStrength || 0,
+    visualReuseMode: artifact?.visualReuseMode || null,
+    extractedPhrase: artifact?.extractedPhrase || "",
+    emotionalTexture: artifact?.emotionalTexture || "",
+    identityCompressionSummary: artifact?.identityCompressionSummary || "",
     socialTag,
     socialTagType: "hashtag",
     sourceBacklinkText,
@@ -123,6 +131,10 @@ function scoreWord(word) {
 }
 
 function buildImagePrompt({ trend, suggestedName, suggestedTicker }) {
+  if (trend.memeticArtifact) {
+    const artifact = trend.memeticArtifact;
+    return `Clean playful internet-native OINK visual for "${suggestedName}" ($${suggestedTicker}). Source artifact: ${artifact.artifactType}; recommended visual reuse: ${artifact.visualReuseMode}; phrase: "${artifact.extractedPhrase || suggestedName}"; emotional texture: ${artifact.emotionalTexture || "curious"}. Preserve the recognizable internet-native artifact shape without copying protected brands, readable at tiny size.`;
+  }
   const mediaHint = trend.sourcePlatform === "x" && trend.hasMedia
     ? `Inspired by the visual object or scene in the viral X media post: "${suggestedName}".`
     : `Based on the trend name "${suggestedName}".`;

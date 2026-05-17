@@ -16,10 +16,18 @@ export class DryRunPumpPortalProvider {
     const narrativeSummary = buildNarrativeSummary(cluster);
     const launchReasoning = buildLaunchReasoning(cluster);
     const launchConfidence = getLaunchConfidence(cluster);
+    const artifact = cluster.memeticArtifact || {};
     const payload = {
       platform: "pumpportal",
       deploymentMode: "dry_run",
       status: "simulated",
+      sourcePlatform: getSourcePlatform(cluster),
+      sourceArtifactType: cluster.sourceArtifactType || artifact.artifactType || "symbolic_artifact",
+      artifactStrength: Math.round(Number(cluster.artifactStrength || artifact.artifactStrength || 0)),
+      visualReuseMode: cluster.visualReuseMode || artifact.visualReuseMode || "generate_new_image",
+      extractedPhrase: cluster.extractedPhrase || artifact.extractedPhrase || "",
+      emotionalTexture: cluster.emotionalTexture || artifact.emotionalTexture || "internet curiosity",
+      identityCompressionSummary: cluster.identityCompressionSummary || artifact.identityCompressionSummary || "",
       lifecycleState: getDryRunLifecycleState(cluster),
       token: {
         name: title,
@@ -72,6 +80,9 @@ export class DryRunPumpPortalProvider {
 
   generateTicker(cluster, title) {
     const candidates = [
+      cluster.artifactSuggestedTicker || cluster.memeticArtifact?.suggestedTicker || "",
+      cluster.extractedPhrase || cluster.memeticArtifact?.extractedPhrase || "",
+      cluster.emotionalTexture || cluster.memeticArtifact?.emotionalTexture || "",
       ...buildTickerCandidates(title),
       ...buildTickerCandidates(cluster.canonicalEntity || ""),
       ...(cluster.relatedPhrases || []).flatMap(buildTickerCandidates),
@@ -102,7 +113,7 @@ export function prepareDryRunPumpPortalLaunch(cluster, options = {}) {
 }
 
 function buildTokenName(cluster) {
-  const source = cluster.canonicalEntity || cluster.relatedPhrases?.[0] || "OINK Narrative";
+  const source = cluster.memeticArtifact?.tokenIdentity || cluster.extractedPhrase || cluster.canonicalEntity || cluster.relatedPhrases?.[0] || "OINK Narrative";
   const cleaned = titleCase(source).replace(/\b(Viral|Meme|Coin|Token|Official)\b/gi, "").replace(/\s+/g, " ").trim();
   if (cleaned.length >= 3 && cleaned.length <= 32) return cleaned;
   return titleCase(cleaned.split(/\s+/).slice(0, 3).join(" ") || "OINK Narrative");
@@ -159,6 +170,7 @@ function buildLaunchReasoning(cluster) {
   if ((cluster.swarmPressure || 0) <= 35) reasons.push("Swarm pressure remains low.");
   if ((cluster.quoteChainExpansion || 0) >= 50) reasons.push("Quote-chain expansion supports remix potential.");
   if ((cluster.remixGrowthRate || 0) >= 45) reasons.push("Remix growth indicates marketable identity formation.");
+  if ((cluster.artifactStrength || 0) >= 70) reasons.push("Memetic artifact strength supports identity compression.");
   if ((cluster.saturationPressure || 0) >= 60) reasons.push("Saturation pressure requires timing caution.");
   if (cluster.copycatSwarm) reasons.push("Copycat swarm detected; dry-run only.");
   return reasons.length ? reasons : ["Narrative passed dry-run preparation review."];
@@ -198,7 +210,11 @@ function getDryRunLifecycleState(cluster) {
 }
 
 function buildImagePrompt({ title, ticker, cluster }) {
-  return `Clean OINK-style internet-native token visual for "${title}" ($${ticker}). Archetype: ${cluster.archetype || "trendwave"}. Create a bold simple mascot or symbolic logo that references the narrative without copying protected brands, high contrast, readable at tiny size, playful but not cluttered.`;
+  const artifact = cluster.memeticArtifact || {};
+  const reuse = cluster.visualReuseMode || artifact.visualReuseMode || "generate_new_image";
+  const texture = cluster.emotionalTexture || artifact.emotionalTexture || "internet-native";
+  const phrase = cluster.extractedPhrase || artifact.extractedPhrase || title;
+  return `Clean OINK-style internet-native token visual for "${title}" ($${ticker}). Artifact: ${cluster.sourceArtifactType || artifact.artifactType || "symbolic_artifact"}; visual plan: ${reuse}; phrase: "${phrase}"; emotional texture: ${texture}. Create a bold simple mascot or symbolic mark that references the narrative without copying protected brands, high contrast, readable at tiny size, playful but not cluttered.`;
 }
 
 function buildXDraft({ title, ticker, cluster }) {
@@ -219,6 +235,14 @@ function buildTelegramDraft({ title, ticker, cluster }) {
 
 function buildPumpDescription({ title, ticker, narrativeSummary }) {
   return `${title} ($${ticker}) is an OINK dry-run attention-market candidate. ${narrativeSummary} Prepared only; no transaction submitted.`;
+}
+
+function getSourcePlatform(cluster) {
+  const platforms = new Set((cluster.relatedPosts || []).map((post) => post.sourcePlatform).filter(Boolean));
+  if (platforms.has("x") && platforms.has("tiktok")) return "cross_platform";
+  if (platforms.has("tiktok")) return "tiktok";
+  if (platforms.has("x")) return "x";
+  return "memory";
 }
 
 function buildAudit(cluster, ticker) {

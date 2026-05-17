@@ -303,6 +303,9 @@ function formatAlertMessage({ trend, score, token, isNewEntry = false, mode = "r
     msg += `🎬 Videos made:   ${formatCount(trend.videoCount)}\n`;
   }
   msg += `</code>\n`;
+  if (trend.memeticArtifact) {
+    msg += formatArtifactInline(trend.memeticArtifact);
+  }
   msg += `━━━━━━━━━━━━━━━━━━━━\n\n`;
 
   // Token data
@@ -583,6 +586,45 @@ export async function sendDryRunLaunchAlert(shadowLaunch) {
   return sent;
 }
 
+export async function sendArtifactPreview({ trend, artifact = trend?.memeticArtifact }) {
+  if (!bot) throw new Error("Bot not initialized — call initBot() first");
+  if (!artifact) return false;
+
+  const message = formatArtifactPreview({ trend, artifact });
+  const sent = await sendTelegramWithFallback({
+    label: `artifact:${trend?.id || artifact.extractedPhrase || artifact.suggestedTicker}`,
+    richHtml: message,
+    compactHtml: message,
+    minimalText: buildMinimalAlertText({
+      title: "OINK ARTIFACT DETECTED",
+      name: artifact.tokenIdentity || artifact.extractedPhrase || trend?.name,
+      score: artifact.artifactStrength,
+      sourceUrl: trend?.sourceUrl,
+    }),
+  });
+  if (sent) console.log(`📤 Artifact preview sent: ${trend?.name || artifact.extractedPhrase}`);
+  return sent;
+}
+
+export function formatArtifactPreview({ trend = {}, artifact }) {
+  let msg = `🐷 <b>OINK ARTIFACT DETECTED</b>\n\n`;
+  msg += `Platform:\n<b>${escapeHtml(getSourceLabel(trend))}</b>\n\n`;
+  msg += `Artifact Type:\n<b>${escapeHtml(formatLabel(artifact.artifactType))}</b>\n\n`;
+  msg += `Source:\n${escapeHtml(getArtifactSourceSummary(trend, artifact))}\n\n`;
+  msg += `Recognizability:\n<b>${escapeHtml(labelArtifactScore(artifact.scores?.recognizability))}</b>\n\n`;
+  msg += `Remixability:\n<b>${escapeHtml(labelArtifactScore(artifact.scores?.remixability))}</b>\n\n`;
+  msg += `Recommended Action:\n<b>${escapeHtml(artifact.recommendedAction || "IDENTITY_COMPRESSION")}</b>\n\n`;
+  msg += `Suggested Ticker:\n<b>$${escapeHtml(artifact.suggestedTicker || "OINK")}</b>\n\n`;
+  msg += `<code>`;
+  msg += `Strength:    ${Number(artifact.artifactStrength || 0)}/100\n`;
+  msg += `Visual Plan: ${artifact.visualReuseMode || "generate_new_image"}\n`;
+  msg += `Phrase:      ${artifact.extractedPhrase || "n/a"}\n`;
+  msg += `Emotion:     ${artifact.emotionalTexture || "curious"}`;
+  msg += `</code>\n\n`;
+  msg += `${escapeHtml(artifact.identityCompressionSummary || "")}`;
+  return constrainTelegramMessage(msg);
+}
+
 export function formatDryRunLaunchAlert(shadowLaunch) {
   const payload = shadowLaunch.payload || {};
   const narrative = payload.narrative || {};
@@ -595,6 +637,14 @@ export function formatDryRunLaunchAlert(shadowLaunch) {
   msg += `Launch Readiness:\n<b>${Number(shadowLaunch.launchReadiness || 0)}/100</b>\n\n`;
   msg += `Swarm Pressure:\n<b>${escapeHtml(labelPressure(shadowLaunch.swarmPressure))}</b>\n\n`;
   msg += `Launch Window:\n<b>${escapeHtml(timing.idealLaunchWindow || "WATCH")}</b>\n\n`;
+  if (payload.sourceArtifactType) {
+    msg += `<b>Source Artifact:</b>\n`;
+    msg += `${escapeHtml(formatLabel(payload.sourceArtifactType))} | strength ${Number(payload.artifactStrength || 0)}/100\n`;
+    msg += `Visual Plan: <b>${escapeHtml(formatLabel(payload.visualReuseMode || "generate_new_image"))}</b>\n`;
+    if (payload.extractedPhrase) msg += `Phrase: ${escapeHtml(payload.extractedPhrase)}\n`;
+    if (payload.emotionalTexture) msg += `Emotion: ${escapeHtml(payload.emotionalTexture)}\n`;
+    msg += `\n`;
+  }
   msg += `Deployment:\n<b>DRY RUN</b>\n\n`;
   msg += `<b>Reasoning:</b>\n`;
   for (const reason of (shadowLaunch.launchReasoning || []).slice(0, 4)) {
@@ -634,6 +684,15 @@ export function formatNarrativeClusterAlert(cluster, { mode = "rich" } = {}) {
   msg += `</code>\n\n`;
 
   msg += `Recommendation:\n<b>${escapeHtml(cluster.recommendation)}</b>\n\n`;
+  if (cluster.memeticArtifact) {
+    msg += `<b>Memetic Artifact:</b>\n`;
+    msg += `${escapeHtml(formatLabel(cluster.sourceArtifactType || cluster.memeticArtifact.artifactType))} | strength ${Number(cluster.artifactStrength || cluster.memeticArtifact.artifactStrength || 0)}/100\n`;
+    msg += `Visual Plan: ${escapeHtml(formatLabel(cluster.visualReuseMode || cluster.memeticArtifact.visualReuseMode || "generate_new_image"))}\n`;
+    if (cluster.extractedPhrase || cluster.memeticArtifact.extractedPhrase) {
+      msg += `Phrase: ${escapeHtml(cluster.extractedPhrase || cluster.memeticArtifact.extractedPhrase)}\n`;
+    }
+    msg += `Ticker Bias: $${escapeHtml(cluster.artifactSuggestedTicker || cluster.memeticArtifact.suggestedTicker || "OINK")}\n\n`;
+  }
   if (cluster.quoteExplosion) msg += `Quote Explosion Detected ⚡\n`;
   if (cluster.copycatSwarm) msg += `Copycat Swarm Pollution Detected\n`;
   if (cluster.viralShapeReason) msg += `${escapeHtml(cluster.viralShapeReason)}\n`;
@@ -709,6 +768,14 @@ function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBr
     msg += `${escapeHtml(launchBrief.socialTag || "#OINKLaunch")}\n\n`;
   }
 
+  if (trend.memeticArtifact) {
+    msg += `<b>Memetic Artifact:</b>\n`;
+    msg += `${escapeHtml(formatLabel(trend.memeticArtifact.artifactType))} | ${Number(trend.memeticArtifact.artifactStrength || 0)}/100\n`;
+    msg += `Visual Plan: ${escapeHtml(formatLabel(trend.memeticArtifact.visualReuseMode || "generate_new_image"))}\n`;
+    if (trend.memeticArtifact.extractedPhrase) msg += `Phrase: ${escapeHtml(trend.memeticArtifact.extractedPhrase)}\n`;
+    msg += `Ticker Bias: $${escapeHtml(trend.memeticArtifact.suggestedTicker || launchBrief.suggestedTicker)}\n\n`;
+  }
+
   msg += `<b>Why OINK Selected It:</b>\n`;
   for (const reason of reasons) {
     msg += `• ${escapeHtml(reason)}\n`;
@@ -775,6 +842,32 @@ function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBr
 function getSourceLabel(trend) {
   if (trend.sourcePlatform === "x") return "X";
   return "TikTok";
+}
+
+function formatArtifactInline(artifact) {
+  let msg = `<b>Memetic Artifact:</b>\n`;
+  msg += `${escapeHtml(formatLabel(artifact.artifactType))} | strength ${Number(artifact.artifactStrength || 0)}/100\n`;
+  msg += `Visual Plan: <b>${escapeHtml(formatLabel(artifact.visualReuseMode || "generate_new_image"))}</b>\n`;
+  if (artifact.extractedPhrase) msg += `Phrase: ${escapeHtml(artifact.extractedPhrase)}\n`;
+  if (artifact.emotionalTexture) msg += `Emotion: ${escapeHtml(artifact.emotionalTexture)}\n`;
+  msg += `Ticker Bias: <b>$${escapeHtml(artifact.suggestedTicker || "OINK")}</b>\n`;
+  return `${msg}\n`;
+}
+
+function getArtifactSourceSummary(trend, artifact) {
+  if (trend.sourcePlatform === "tiktok" && artifact.artifactType === "audio_artifact") return "viral TikTok sound";
+  if (trend.sourcePlatform === "tiktok") return "TikTok caption/reaction format";
+  if (trend.sourcePlatform === "x" && trend.hasMedia) return "viral X media post";
+  if (trend.sourcePlatform === "x") return "viral X discourse fragment";
+  return "stored narrative artifact";
+}
+
+function labelArtifactScore(score) {
+  const value = Number(score || 0);
+  if (value >= 80) return "VERY HIGH";
+  if (value >= 65) return "HIGH";
+  if (value >= 45) return "MEDIUM";
+  return "LOW";
 }
 
 export async function sendLaunchCreatedAlert({ trend, launchBrief, launchedToken, feeSummary = null }) {

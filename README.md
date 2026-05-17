@@ -11,7 +11,7 @@
         OINK
 ```
 
-**OINK is an autonomous attention-layer engine preparing internet-native narratives for market formation.**
+**OINK is a cross-platform narrative-to-artifact engine detecting internet-native identities before market formation.**
 
 OINK was formerly TrendAlpha. TrendAlpha proved the first idea: internet trends can become market narratives before most people notice them. OINK takes the next step: it watches viral attention across social platforms, scores whether that attention could become a market, generates launch briefs, and prepares candidates for human review.
 
@@ -46,6 +46,7 @@ It cares about:
 - Unusually high engagement relative to account size
 - Early marketability emerging from remix structure
 - Narrative clusters forming across posts, accounts, phrases, and media motifs
+- Memetic artifacts that can compress into identity, ticker, visual direction, and launch framing
 - Whether a related token already exists
 - Risk flags around brands, celebrities, tragedy, or already-saturated crypto language
 
@@ -125,6 +126,18 @@ If the dedicated memory table is missing or rejects a payload, OINK retries a mi
 
 Apply `supabase/migration.sql` in the Supabase SQL editor to create or update the memory table and indexes.
 
+## Cross-Platform Artifact Engine
+
+OINK extracts internet-native identity artifacts from X and TikTok before a market forms.
+
+For X, it watches quote chains, screenshots, symbolic images, repeated discourse fragments, recurring phrases, and cross-community propagation.
+
+For TikTok, it compresses captions, repeated phrases, sound titles, stitched formats, reaction formats, freeze-frame moments, emotional expressions, and edit patterns.
+
+Artifacts are scored for recognizability, remixability, screenshot survivability, emotional compression, visual uniqueness, repeatability, and sound stickiness. OINK then compresses artifact + phrase + emotion + visual texture into ticker bias, token identity, launch framing, visual reuse mode, and dry-run launch metadata.
+
+Visual handling is conservative: reuse or crop source media when the artifact is already recognizable, isolate symbols or mascots when they carry the identity, overlay text when the phrase is the artifact, and generate new imagery only when necessary.
+
 ## Launch Flow
 
 ```txt
@@ -143,7 +156,7 @@ For now, OINK only prepares launch candidates. It does not launch tokens.
 
 ## PumpPortal Dry Runs
 
-OINK can prepare PumpPortal-style deployment metadata without broadcasting a transaction. A dry-run launch payload includes token name, ticker, description, narrative summary, archetype, launch reasoning, launch confidence, launch timing, image prompt, X draft, Telegram draft, and Pump.fun description draft.
+OINK can prepare PumpPortal-style deployment metadata without broadcasting a transaction. A dry-run launch payload includes token name, ticker, description, narrative summary, archetype, launch reasoning, launch confidence, launch timing, source platform, source artifact type, artifact strength, visual reuse mode, extracted phrase, emotional texture, identity compression summary, image prompt, X draft, Telegram draft, and Pump.fun description draft.
 
 Ticker generation is intentionally conservative. OINK prefers short identity-centric tickers and rejects weak or polluted patterns such as generic meme suffixes, duplicate tickers, and stuffed `AIINU`-style symbols.
 
@@ -165,6 +178,7 @@ OINK turns attention into structured outputs:
 
 - **Trend score**: how strong the underlying attention is.
 - **Launch score**: whether the attention could plausibly become a market.
+- **Memetic artifact score**: whether the source image, phrase, sound, reaction frame, mascot, symbol, or behavior can survive as market identity.
 - **Suggested name and ticker**: a clean market framing.
 - **Launch thesis**: why the attention matters before a market fully forms.
 - **Risk flags**: reasons a candidate may need review or rejection.

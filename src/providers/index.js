@@ -1,6 +1,7 @@
 import { config } from "../config.js";
 import { fetchTikTokAttention } from "./tiktokProvider.js";
 import { fetchXAttention } from "./xProvider.js";
+import { applyArtifactIntelligence } from "../artifacts.js";
 
 export async function fetchAllAttentionSources() {
   const providerTasks = [];
@@ -15,7 +16,7 @@ export async function fetchAllAttentionSources() {
 
   const results = await Promise.all(providerTasks);
   const combined = results.flatMap((result) => result.items);
-  const deduped = dedupeById(combined);
+  const deduped = dedupeById(combined).map(applyArtifactIntelligence);
 
   return deduped.sort((a, b) => {
     const aVelocity = a.attentionShapeScore || (a.viewsPerHour || 0) + (a.engagementPerHour || 0) * 20;

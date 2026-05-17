@@ -48,6 +48,9 @@ if (clusters.length > 0) {
     console.log(`- ${shadowLaunch.title} ($${shadowLaunch.ticker})`);
     console.log(`  Window: ${shadowLaunch.payload.launchTiming.idealLaunchWindow} | Timing: ${shadowLaunch.payload.launchTiming.idealLaunchTiming}`);
     console.log(`  Confidence: ${shadowLaunch.payload.launchConfidence}/100 | State: ${shadowLaunch.payload.lifecycleState}`);
+    if (shadowLaunch.payload.sourceArtifactType) {
+      console.log(`  Artifact: ${shadowLaunch.payload.sourceArtifactType} | strength ${shadowLaunch.payload.artifactStrength}/100 | visual ${shadowLaunch.payload.visualReuseMode}`);
+    }
     console.log(`  X Draft: ${shadowLaunch.payload.socialPostDraft.x.split("\n").join(" / ")}`);
   }
   if (strongClusters.length > 0) console.log("");
@@ -88,6 +91,10 @@ for (const trend of trends.slice(0, MAX_PREVIEW)) {
   }
   console.log(`Would Send: ${isLaunchCandidate ? "Launch candidate card" : "Regular attention alert if score threshold is met"}`);
   console.log(`Suggested Market: ${launchBrief.suggestedName} ($${launchBrief.suggestedTicker})`);
+  if (trend.memeticArtifact) {
+    console.log(`Artifact: ${trend.memeticArtifact.artifactType} | strength ${trend.memeticArtifact.artifactStrength}/100 | visual ${trend.memeticArtifact.visualReuseMode}`);
+    console.log(`Identity Compression: ${trend.memeticArtifact.identityCompressionSummary}`);
+  }
   console.log(`Narrative Tag: ${launchBrief.socialTag}`);
   if (launchBrief.xLaunchPost) {
     console.log("Suggested X Post:");
