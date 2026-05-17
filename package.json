@@ -13,6 +13,7 @@
     "test-alert": "node src/scripts/testAlert.js",
     "test-launch-created": "node src/scripts/testLaunchCreatedAlert.js",
     "test-launch": "node src/scripts/testLaunchBrief.js",
+    "test-live-metadata-rules": "node src/scripts/testLiveMetadataRules.js",
     "test-metadata": "node src/scripts/testMetadataPipeline.js",
     "test-image-pipeline": "node src/scripts/testImagePipeline.js",
     "test-pumpportal": "node src/scripts/testPumpPortalProvider.js",

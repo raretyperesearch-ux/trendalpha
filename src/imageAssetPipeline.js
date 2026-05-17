@@ -143,7 +143,7 @@ export function validateImageAsset({ mode, prompt = "", localPath = "", remoteUr
   if (sourceChoice.mode === "source_media" && !sourceChoice.sourceValidation?.valid) {
     errors.push("source_media_validation_failed");
   }
-  if (sourceChoice.mode === "source_media" && !sourceChoice.dryWire && !sourceChoice.enableSourceMediaHotlink) {
+  if (sourceChoice.mode === "source_media" && !sourceChoice.dryWire && !sourceChoice.enableSourceMediaHotlink && !sourceChoice.rehostRequired) {
     errors.push("source_media_hotlink_disabled");
   }
 
@@ -181,7 +181,7 @@ function getImageState({ mode, validation }) {
 function chooseImageSource({ mode, selectedMedia, localPath, remoteUrl, dryWire, enableSourceMediaHotlink }) {
   const sourceMedia = selectedMedia?.candidate || null;
   const sourceValidation = selectedMedia?.validation || { valid: false, errors: ["source_media_missing"], warnings: [] };
-  if (sourceMedia && sourceValidation.valid && (dryWire || enableSourceMediaHotlink)) {
+  if (sourceMedia && sourceValidation.valid) {
     return {
       mode: "source_media",
       assetType: sourceMedia.assetType === "photo" || sourceMedia.assetType === "cover_image" ? "source_image" : "source_video_thumbnail",
@@ -193,6 +193,7 @@ function chooseImageSource({ mode, selectedMedia, localPath, remoteUrl, dryWire,
       sourceValidation,
       dryWire,
       enableSourceMediaHotlink,
+      rehostRequired: !dryWire && !enableSourceMediaHotlink,
     };
   }
 

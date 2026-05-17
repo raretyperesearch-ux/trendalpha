@@ -50,10 +50,62 @@ export class MetadataUploadProvider {
   }
 }
 
+export class PinataMetadataUploadProvider extends MetadataUploadProvider {
+  constructor(options = {}) {
+    super({ ...options, provider: "pinata_ipfs" });
+  }
+
+  async uploadImage() {
+    throw new Error("Pinata/IPFS upload provider is a dry-wire interface only; credentials and upload implementation are not enabled");
+  }
+
+  async uploadMetadata() {
+    throw new Error("Pinata/IPFS metadata upload provider is a dry-wire interface only; credentials and upload implementation are not enabled");
+  }
+}
+
+export class ArweaveMetadataUploadProvider extends MetadataUploadProvider {
+  constructor(options = {}) {
+    super({ ...options, provider: "arweave" });
+  }
+
+  async uploadImage() {
+    throw new Error("Arweave upload provider is a dry-wire interface only; wallet/signing is not enabled");
+  }
+
+  async uploadMetadata() {
+    throw new Error("Arweave metadata upload provider is a dry-wire interface only; wallet/signing is not enabled");
+  }
+}
+
+export class PumpPortalMetadataUploadProvider extends MetadataUploadProvider {
+  constructor(options = {}) {
+    super({ ...options, provider: "pumpportal" });
+  }
+
+  async uploadImage() {
+    throw new Error("PumpPortal upload endpoint provider is a dry-wire interface only; live upload is not enabled");
+  }
+
+  async uploadMetadata() {
+    throw new Error("PumpPortal metadata upload provider is a dry-wire interface only; live upload is not enabled");
+  }
+}
+
+export function createMetadataUploadProvider(options = {}) {
+  const provider = options.provider || config.metadata.uploadProvider || "dry_wire";
+  if (provider === "pinata" || provider === "pinata_ipfs") return new PinataMetadataUploadProvider(options);
+  if (provider === "arweave") return new ArweaveMetadataUploadProvider(options);
+  if (provider === "pumpportal" || provider === "pumpportal_upload") return new PumpPortalMetadataUploadProvider(options);
+  return new MetadataUploadProvider({ ...options, provider });
+}
+
 export class ImageDownloadRehostPipeline {
   constructor(options = {}) {
     this.downloadRemoteImages = options.downloadRemoteImages ?? config.metadata.downloadRemoteImages;
-    this.uploadProvider = options.uploadProvider || new MetadataUploadProvider(options);
+    this.liveMode = options.liveMode ?? Boolean(options.enableRealLaunches);
+    this.strictMode = options.strictMode ?? config.metadata.liveStrictMode;
+    this.uploadProvider = options.uploadProvider || createMetadataUploadProvider(options);
   }
 
   async prepare({ deploymentAttempt }) {
@@ -61,7 +113,10 @@ export class ImageDownloadRehostPipeline {
     const imageAsset = metadata.imageUpload || {};
     const download = await this.downloadImageAsset(imageAsset);
     const imageReview = reviewImageBytes(download, imageAsset);
-    const imageValidation = validateImageReview(imageReview);
+    const imageValidation = validateImageReview(imageReview, {
+      liveMode: this.liveMode,
+      strictMode: this.strictMode,
+    });
 
     let upload = null;
     if (imageValidation.valid) {
@@ -80,7 +135,12 @@ export class ImageDownloadRehostPipeline {
       hostedImageUrl: upload?.hostedImageUrl || "",
       imageReview,
     });
-    const metadataValidation = validatePumpPortalMetadataJson(metadataJson);
+    const metadataValidation = validatePumpPortalMetadataJson(metadataJson, {
+      liveMode: this.liveMode,
+      strictMode: this.strictMode,
+      imageReview,
+      imageUpload: upload,
+    });
 
     let metadataUpload = null;
     if (metadataValidation.valid) {
@@ -90,6 +150,17 @@ export class ImageDownloadRehostPipeline {
       });
     }
 
+    const report = buildMetadataDryRunReport({
+      metadataJson,
+      metadataUpload,
+      imageUpload: upload,
+      imageAsset,
+      imageReview,
+      metadataValidation,
+      liveMode: this.liveMode,
+      strictMode: this.strictMode,
+    });
+
     return {
       state: metadataValidation.valid ? "metadata_hosted_ready" : "metadata_hosting_failed",
       imageReview,
@@ -98,6 +169,7 @@ export class ImageDownloadRehostPipeline {
       metadataJson,
       metadataValidation,
       metadataUpload,
+      report,
       launchAsset: {
         ...imageAsset,
         imageUrl: upload?.hostedImageUrl || "",
@@ -108,6 +180,8 @@ export class ImageDownloadRehostPipeline {
         width: imageReview.width,
         height: imageReview.height,
         imageQualityReview: imageReview,
+        liveEligible: report.liveEligible,
+        liveEligibilityReasons: report.liveEligibilityReasons,
         validationStatus: metadataValidation.valid ? "metadata_ready" : "validation_failed",
       },
       createdAt: new Date().toISOString(),
@@ -139,7 +213,8 @@ export class ImageDownloadRehostPipeline {
 }
 
 export async function prepareHostedPumpPortalMetadata(deploymentAttempt, options = {}) {
-  return new ImageDownloadRehostPipeline(options).prepare({ deploymentAttempt });
+  const liveMode = options.liveMode ?? (deploymentAttempt.mode === "LIVE_DISABLED_SKELETON" || deploymentAttempt.payload?.mode === "live_skeleton");
+  return new ImageDownloadRehostPipeline({ ...options, liveMode }).prepare({ deploymentAttempt });
 }
 
 export function buildPumpPortalMetadataJson({ metadata = {}, deploymentAttempt = {}, hostedImageUrl = "", imageReview = {} }) {
@@ -164,12 +239,13 @@ export function buildPumpPortalMetadataJson({ metadata = {}, deploymentAttempt =
       identityArchetype: metadata.identityArchetype || "trendwave",
       sloganFragments: metadata.sloganFragments || [],
       imageReview,
-      dryWire: true,
+      dryWire: !imageReview.liveMode,
+      liveEligible: Boolean(imageReview.liveEligible),
     },
   };
 }
 
-export function validatePumpPortalMetadataJson(metadataJson = {}) {
+export function validatePumpPortalMetadataJson(metadataJson = {}, { liveMode = false, strictMode = false, imageReview = {}, imageUpload = null } = {}) {
   const errors = [];
   const warnings = [];
   if (!metadataJson.name || metadataJson.name.length > 32) errors.push("metadata_name_invalid");
@@ -177,6 +253,11 @@ export function validatePumpPortalMetadataJson(metadataJson = {}) {
   if (!metadataJson.description || metadataJson.description.length > 500) errors.push("metadata_description_invalid");
   if (!metadataJson.image || !isHttpsUrl(metadataJson.image)) errors.push("hosted_image_url_missing_or_invalid");
   if (!metadataJson.oink?.sourceBacklink) warnings.push("source_backlink_missing");
+  if (liveMode && strictMode && imageReview.source === "dry_wire_synthetic_download") errors.push("live_mode_rejects_synthetic_image");
+  if (liveMode && strictMode && !["remote_url", "local_path"].includes(imageReview.source)) errors.push("live_mode_requires_real_image_source");
+  if (liveMode && strictMode && (!imageUpload || imageUpload.provider === "dry_wire" || !imageUpload.uploaded)) {
+    errors.push("live_mode_requires_real_upload_provider");
+  }
   return { valid: errors.length === 0, errors, warnings };
 }
 
@@ -218,16 +299,55 @@ export function reviewImageBytes(download, imageAsset = {}) {
     hash,
     qualityScore: score,
     qualityLabel: score >= 80 ? "HIGH" : score >= 60 ? "MEDIUM" : "LOW",
+    liveEligibleSource: ["remote_url", "local_path"].includes(download.source),
+    liveMode: false,
+    liveEligible: false,
     errors,
     warnings,
   };
 }
 
-function validateImageReview(review) {
+function validateImageReview(review, { liveMode = false, strictMode = false } = {}) {
+  const errors = [...review.errors];
+  const warnings = [...review.warnings];
+  if (liveMode && strictMode && review.source === "dry_wire_synthetic_download") errors.push("live_mode_rejects_synthetic_download");
+  if (liveMode && strictMode && !review.liveEligibleSource) errors.push("live_mode_requires_actual_downloaded_or_generated_image");
+  review.liveMode = Boolean(liveMode);
+  review.liveEligible = errors.length === 0 && review.qualityScore >= 55 && review.liveEligibleSource;
   return {
-    valid: review.errors.length === 0 && review.qualityScore >= 55,
-    errors: review.errors,
-    warnings: review.warnings,
+    valid: errors.length === 0 && review.qualityScore >= 55,
+    errors,
+    warnings,
+  };
+}
+
+export function buildMetadataDryRunReport({
+  metadataJson = {},
+  metadataUpload = null,
+  imageUpload = null,
+  imageAsset = {},
+  imageReview = {},
+  metadataValidation = {},
+  liveMode = false,
+  strictMode = false,
+} = {}) {
+  const reasons = [];
+  if (!metadataValidation.valid) reasons.push(...(metadataValidation.errors || []));
+  if (!imageReview.liveEligibleSource) reasons.push("image_source_not_live_eligible");
+  if (imageReview.source === "dry_wire_synthetic_download") reasons.push("synthetic_dry_wire_image");
+  if (!imageUpload || imageUpload.provider === "dry_wire" || !imageUpload.uploaded) reasons.push("not_uploaded_to_real_provider");
+  const liveEligible = reasons.length === 0;
+  return {
+    finalImageUrl: metadataJson.image || "",
+    metadataUrl: metadataUpload?.metadataUrl || "",
+    imageSource: imageAsset.imageSource || imageReview.source || "",
+    imageReviewSource: imageReview.source || "",
+    uploadProvider: imageUpload?.provider || "",
+    uploadStatus: imageUpload?.status || "not_prepared",
+    strictMode: Boolean(strictMode),
+    liveMode: Boolean(liveMode),
+    liveEligible,
+    liveEligibilityReasons: reasons,
   };
 }
 
