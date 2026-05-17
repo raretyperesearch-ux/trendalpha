@@ -9,6 +9,7 @@ import { applyXSnapshotPersistence } from "../providers/xProvider.js";
 import { applyLaunchWorthiness } from "../launchWorthiness.js";
 import { buildNarrativeClusters, getStrongNarrativeClusters } from "../narrativeClusters.js";
 import { prepareDryRunPumpPortalLaunch } from "../launchers/dryRunPumpPortalProvider.js";
+import { runMemoryOnlyLaunchTest } from "../shadowLaunches.js";
 import { scoreTrend } from "../scoring.js";
 import { scoreLaunchOpportunity } from "../launchScoring.js";
 import { generateLaunchBrief } from "../launchBrief.js";
@@ -100,6 +101,12 @@ async function main() {
   initBot();
 
   const trends = await fetchAllAttentionSources();
+  if (trends.length === 0 && config.launch.memoryOnlyLaunchTestMode) {
+    console.log("🧠 No live trends found — exercising memory-only dry-run launches");
+    await runMemoryOnlyLaunchTest({ limit: 3, sendTelegram: true });
+    console.log("\n✅ Scan complete — memory-only dry-run mode exercised");
+    process.exit(0);
+  }
 
   let alertsSent = 0;
   alertsSent += await processNarrativeClusters(trends, alertsSent);

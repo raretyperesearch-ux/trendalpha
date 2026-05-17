@@ -196,6 +196,33 @@ export async function getRecentNarrativeClusterSnapshots(hours = 72) {
   }
 }
 
+export async function getMemoryOnlyLaunchClusters({ hours = 168, limit = 20 } = {}) {
+  if (!supabase) return [];
+
+  try {
+    const since = new Date(Date.now() - hours * 3600000).toISOString();
+    const { data, error } = await supabase
+      .from("narrative_cluster_snapshots")
+      .select("*")
+      .gte("timestamp", since)
+      .gte("launch_readiness", 75)
+      .gte("persistence_score", 70)
+      .lte("swarm_pressure", 40)
+      .order("launch_readiness", { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    return (data || []).map(memoryRowToCluster).filter(Boolean);
+  } catch (err) {
+    if (isMissingTableError(err)) {
+      warnMissingNarrativeTable();
+    } else {
+      console.error("❌ Failed to load memory-only launch clusters:", err.message);
+    }
+    return getMemoryOnlyLaunchClustersFallback({ hours, limit });
+  }
+}
+
 async function retryMinimalNarrativeClusterInsert(cluster) {
   try {
     const minimal = narrativeMemory.buildMinimalSnapshotRow(cluster);
@@ -251,6 +278,78 @@ async function getRecentNarrativeClusterSnapshotsFallback(hours) {
     console.error("❌ Narrative cluster fallback load failed:", err.message);
     return [];
   }
+}
+
+async function getMemoryOnlyLaunchClustersFallback({ hours, limit }) {
+  try {
+    const since = new Date(Date.now() - hours * 3600000).toISOString();
+    const { data, error } = await supabase
+      .from("trend_snapshots")
+      .select("*")
+      .like("trend_id", "cluster:%")
+      .gte("scanned_at", since)
+      .order("score", { ascending: false })
+      .limit(limit * 3);
+
+    if (error) throw error;
+    return (data || [])
+      .map(memoryRowToCluster)
+      .filter((cluster) =>
+        Number(cluster.launchReadiness || 0) >= 75 &&
+        Number(cluster.propagationPersistence || 0) >= 70 &&
+        Number(cluster.swarmPressure || 0) <= 40
+      )
+      .slice(0, limit);
+  } catch (err) {
+    console.error("❌ Memory-only launch fallback load failed:", err.message);
+    return [];
+  }
+}
+
+function memoryRowToCluster(row) {
+  const snapshot = row.snapshot || row.score_breakdown?.narrativeCluster || {};
+  const clusterId = snapshot.clusterId || row.cluster_id || String(row.trend_id || "").replace(/^cluster:/, "");
+  if (!clusterId) return null;
+
+  const cluster = {
+    ...snapshot,
+    clusterId,
+    canonicalEntity: snapshot.canonicalEntity || row.cluster_name || row.trend_name || "Narrative Cluster",
+    lifecycleState: snapshot.lifecycleState || row.narrative_phase || "forming",
+    momentumTrend: snapshot.momentumTrend || row.momentum_state || "stable",
+    propagationPersistence: Number(row.persistence_score ?? snapshot.propagationPersistence ?? 0),
+    identityFormationScore: Number(row.identity_strength ?? snapshot.identityFormationScore ?? snapshot.communityFormationScore ?? 0),
+    swarmPressure: Number(row.swarm_pressure ?? snapshot.swarmPressure ?? 0),
+    launchReadiness: Number(row.launch_readiness ?? snapshot.launchReadiness ?? row.score ?? 0),
+    launchWorthinessScore: Number(row.launch_worthiness ?? snapshot.launchWorthinessScore ?? row.score ?? 0),
+    totalAttention: Number(row.total_attention ?? snapshot.totalAttention ?? row.total_views ?? 0),
+    communitySpreadScore: Number(row.cross_community_score ?? snapshot.communitySpreadScore ?? 0),
+    remixGrowthRate: Number(row.remixability_score ?? snapshot.remixGrowthRate ?? 0),
+    saturationPressure: Number(row.saturation_score ?? snapshot.saturationPressure ?? 0),
+    accelerationSlope: Number(row.acceleration_score ?? snapshot.accelerationSlope ?? 0),
+    relatedPosts: snapshot.relatedPosts || [],
+    relatedAccounts: snapshot.relatedAccounts || [],
+    relatedPhrases: snapshot.relatedPhrases || [],
+    archetype: snapshot.archetype || "trendwave",
+    marketStatus: snapshot.marketStatus || "unclaimed",
+    lastSeenAt: snapshot.lastSeenAt || row.timestamp || row.scanned_at || row.created_at,
+    firstSeenAt: snapshot.firstSeenAt || row.timestamp || row.scanned_at || row.created_at,
+  };
+
+  if (!cluster.launchWindow) cluster.launchWindow = inferMemoryLaunchWindow(cluster);
+  if (!cluster.idealLaunchTiming) cluster.idealLaunchTiming = cluster.launchWindow === "PRIME_WINDOW" ? "now" : "watch";
+  if (!cluster.phaseRecommendation) cluster.phaseRecommendation = cluster.launchReadiness >= 82 ? "PREPARE_LAUNCH" : "WATCH";
+  if (cluster.earlyConviction === undefined) {
+    cluster.earlyConviction = cluster.launchReadiness >= 75 && cluster.swarmPressure <= 40 && cluster.saturationPressure <= 65;
+  }
+  return cluster;
+}
+
+function inferMemoryLaunchWindow(cluster) {
+  if (cluster.saturationPressure >= 72) return "LATE_STAGE";
+  if (cluster.launchReadiness >= 82 && cluster.swarmPressure <= 35) return "PRIME_WINDOW";
+  if (cluster.launchReadiness >= 75) return "FORMING_WINDOW";
+  return "WATCH";
 }
 
 export async function wasClusterAlertedRecently(clusterId) {

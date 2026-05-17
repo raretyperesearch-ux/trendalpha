@@ -47,6 +47,7 @@ export const config = {
   launch: {
     minLaunchScore: optionalInt("MIN_LAUNCH_SCORE", "82"),
     enableLaunchCandidates: optionalBool("ENABLE_LAUNCH_CANDIDATES", true),
+    memoryOnlyLaunchTestMode: optionalBool("MEMORY_ONLY_LAUNCH_TEST_MODE", false),
   },
   providers: {
     tiktok: optionalBool("ENABLE_TIKTOK_PROVIDER", true),

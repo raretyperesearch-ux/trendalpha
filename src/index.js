@@ -12,6 +12,7 @@ import { applyXSnapshotPersistence } from "./providers/xProvider.js";
 import { applyLaunchWorthiness } from "./launchWorthiness.js";
 import { buildNarrativeClusters, getStrongNarrativeClusters } from "./narrativeClusters.js";
 import { prepareDryRunPumpPortalLaunch } from "./launchers/dryRunPumpPortalProvider.js";
+import { runMemoryOnlyLaunchTest } from "./shadowLaunches.js";
 import { scoreTrend } from "./scoring.js";
 import { scoreLaunchOpportunity } from "./launchScoring.js";
 import { generateLaunchBrief } from "./launchBrief.js";
@@ -97,7 +98,13 @@ async function runScan() {
   try {
     const trends = await fetchAllAttentionSources();
     if (trends.length === 0) {
-      console.log("❌ No trends found, skipping scan");
+      console.log("❌ No trends found");
+      if (config.launch.memoryOnlyLaunchTestMode) {
+        console.log("🧠 Live providers quiet — exercising memory-only dry-run launches");
+        await runMemoryOnlyLaunchTest({ limit: 3, sendTelegram: true });
+      } else {
+        console.log("   Skipping scan");
+      }
       return;
     }
 
