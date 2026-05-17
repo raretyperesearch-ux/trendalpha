@@ -741,6 +741,20 @@ export function formatDeploymentAdapterAlert(deploymentAttempt) {
   return constrainTelegramMessage(msg);
 }
 
+export function formatSaturationWarningAlert({ title = "OINK SATURATION WARNING", safety = {}, shadowLaunch = {} } = {}) {
+  let msg = `🐷 <b>${escapeHtml(title)}</b>\n\n`;
+  msg += `Ticker:\n<b>$${escapeHtml(shadowLaunch.ticker || safety.ticker || "OINK")}</b>\n\n`;
+  msg += `Saturation:\n<b>${Number(safety.saturationScore || 0)}/100</b>\n\n`;
+  msg += `Allowed:\n<b>${safety.allowed ? "YES" : "NO"}</b>\n\n`;
+  msg += `<code>`;
+  msg += `Blocks:   ${(safety.blocks || []).join(", ") || "none"}\n`;
+  msg += `Warnings: ${(safety.warnings || []).join(", ") || "none"}\n`;
+  msg += `Penalty:  ${Number(safety.launchOpportunityPenalty || 0)}`;
+  msg += `</code>\n\n`;
+  msg += `<i>No launch action taken. Saturation safety is advisory/blocking only.</i>`;
+  return constrainTelegramMessage(msg);
+}
+
 function formatCapabilityIcon(value) {
   if (value === true) return "✅";
   if (value === false || value == null) return "❌";

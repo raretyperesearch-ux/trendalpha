@@ -300,6 +300,18 @@ npm run dashboard
 
 The dashboard is read-only. It shows recent attention candidates and the $OINK buyback flywheel.
 
+## Mission Control
+
+OINK Mission Control is a read-only HTML dashboard for reviewing active clusters, launch readiness, shadow launches, deployment states, identity/image previews, ticker quality, saturation warnings, provider health, deployment queues, audit timelines, and failure diagnostics before wallets or broadcasts exist.
+
+Run:
+
+```bash
+npm run mission-control
+```
+
+It writes `mission-control.html` locally. The page does not execute launches, connect wallets, submit transactions, or broadcast anything.
+
 ## Local Commands
 
 ```bash
@@ -319,6 +331,7 @@ npm run test-telegram-alert
 npm run test-shadow-launches
 npm run test-x
 npm run dashboard
+npm run mission-control
 npm start
 ```
 

@@ -164,6 +164,9 @@ CREATE TABLE IF NOT EXISTS deployment_attempts (
   payload JSONB DEFAULT '{}',
   deployment_state TEXT DEFAULT 'preparing',
   validation_result JSONB DEFAULT '{}',
+  idempotency_key TEXT,
+  state_timeline JSONB DEFAULT '[]',
+  failure_class TEXT,
   mode TEXT DEFAULT 'DRY_WIRE',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -175,6 +178,9 @@ ALTER TABLE deployment_attempts
   ADD COLUMN IF NOT EXISTS payload JSONB DEFAULT '{}',
   ADD COLUMN IF NOT EXISTS deployment_state TEXT DEFAULT 'preparing',
   ADD COLUMN IF NOT EXISTS validation_result JSONB DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS idempotency_key TEXT,
+  ADD COLUMN IF NOT EXISTS state_timeline JSONB DEFAULT '[]',
+  ADD COLUMN IF NOT EXISTS failure_class TEXT,
   ADD COLUMN IF NOT EXISTS mode TEXT DEFAULT 'DRY_WIRE',
   ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 
@@ -186,6 +192,9 @@ CREATE INDEX IF NOT EXISTS idx_deployment_attempts_ticker
 
 CREATE INDEX IF NOT EXISTS idx_deployment_attempts_state
   ON deployment_attempts(deployment_state);
+
+CREATE INDEX IF NOT EXISTS idx_deployment_attempts_idempotency
+  ON deployment_attempts(idempotency_key);
 
 -- Launch image/metadata assets — dry-wire asset preparation only
 CREATE TABLE IF NOT EXISTS launch_assets (

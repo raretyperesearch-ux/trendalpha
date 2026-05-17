@@ -493,6 +493,9 @@ export async function saveDeploymentAttempt(attempt) {
     deployment_state: String(attempt.deploymentState || "preparing").slice(0, 40),
     validation_result: attempt.validation || {},
     mode: String(attempt.mode || "DRY_WIRE").slice(0, 40),
+    idempotency_key: String(attempt.idempotencyKey || "").slice(0, 180),
+    state_timeline: attempt.stateTimeline || [],
+    failure_class: String(attempt.failure?.failureClass || attempt.failureClass || "").slice(0, 80),
     created_at: new Date().toISOString(),
   };
 

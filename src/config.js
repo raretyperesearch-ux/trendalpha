@@ -51,6 +51,10 @@ export const config = {
     enableRealLaunches: optionalBool("ENABLE_REAL_LAUNCHES", false),
     deploymentMinReadiness: optionalInt("DEPLOYMENT_MIN_LAUNCH_READINESS", "80"),
     deploymentMaxSwarmPressure: optionalInt("DEPLOYMENT_MAX_SWARM_PRESSURE", "40"),
+    globalDisable: optionalBool("OINK_GLOBAL_LAUNCH_DISABLE", false),
+    maxLaunchesPerHour: optionalInt("MAX_LAUNCHES_PER_HOUR", "3"),
+    sameNarrativeWindowHours: optionalInt("SAME_NARRATIVE_SUPPRESSION_HOURS", "24"),
+    tickerCooldownHours: optionalInt("TICKER_COLLISION_COOLDOWN_HOURS", "72"),
   },
   pumpPortal: {
     apiBaseUrl: optional("PUMPPORTAL_API_BASE_URL", "https://pumpportal.fun/api"),
