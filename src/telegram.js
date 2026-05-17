@@ -586,6 +586,59 @@ export async function sendDryRunLaunchAlert(shadowLaunch) {
   return sent;
 }
 
+export async function sendDeploymentReadyAlert(deploymentAttempt) {
+  if (!bot) throw new Error("Bot not initialized — call initBot() first");
+
+  const message = formatDeploymentReadyAlert(deploymentAttempt);
+  const sent = await sendTelegramWithFallback({
+    label: `deployment:${deploymentAttempt.attemptId || deploymentAttempt.ticker}`,
+    richHtml: message,
+    compactHtml: message,
+    minimalText: buildMinimalAlertText({
+      title: "OINK DEPLOYMENT READY",
+      name: `$${deploymentAttempt.ticker}`,
+      score: deploymentAttempt.payload?.launchContext?.launchReadiness,
+    }),
+  });
+  if (sent) console.log(`📤 Deployment diagnostic sent: $${deploymentAttempt.ticker}`);
+  return sent;
+}
+
+export function formatDeploymentReadyAlert(deploymentAttempt) {
+  const payload = deploymentAttempt.payload || {};
+  const context = payload.launchContext || {};
+  const validation = deploymentAttempt.validation || {};
+  const pumpPortal = deploymentAttempt.pumpPortal || {};
+
+  let msg = `🐷 <b>OINK DEPLOYMENT READY</b>\n\n`;
+  msg += `Ticker:\n<b>$${escapeHtml(deploymentAttempt.ticker || payload.token?.symbol || "OINK")}</b>\n\n`;
+  msg += `Launch Readiness:\n<b>${Number(context.launchReadiness || 0)}/100</b>\n\n`;
+  msg += `Identity Cohesion:\n<b>${Number(context.identityCohesion || 0)}/100</b>\n\n`;
+  msg += `Deployment Status:\n<b>${escapeHtml(formatLabel(deploymentAttempt.deploymentState || "payload_ready"))}</b>\n\n`;
+  msg += `PumpPortal:\n<b>${pumpPortal.connected ? "CONNECTED" : "OFFLINE"}</b>\n\n`;
+  msg += `Mode:\n<b>${escapeHtml(deploymentAttempt.mode || "DRY_WIRE")}</b>\n\n`;
+  msg += `<code>`;
+  msg += `Name:       ${payload.token?.name || "n/a"}\n`;
+  msg += `Phase:      ${context.narrativePhase || "forming"}\n`;
+  msg += `Swarm:      ${Number(context.swarmPressure || 0)}/100\n`;
+  msg += `Artifact:   ${payload.metadata?.sourceArtifactType || "symbolic_artifact"}\n`;
+  msg += `Image:      ${payload.metadata?.imageUpload?.status || "placeholder"}\n`;
+  msg += `Valid:      ${validation.valid ? "yes" : "no"}`;
+  msg += `</code>\n\n`;
+  if (validation.errors?.length) {
+    msg += `<b>Validation Errors:</b>\n`;
+    for (const error of validation.errors.slice(0, 5)) msg += `• ${escapeHtml(error)}\n`;
+    msg += `\n`;
+  }
+  if (validation.warnings?.length) {
+    msg += `<b>Warnings:</b>\n`;
+    for (const warning of validation.warnings.slice(0, 4)) msg += `• ${escapeHtml(warning)}\n`;
+    msg += `\n`;
+  }
+  msg += `<i>Dry-wire only. No wallet, signature, transaction, or broadcast.</i>`;
+  return constrainTelegramMessage(msg);
+}
+
 export async function sendArtifactPreview({ trend, artifact = trend?.memeticArtifact }) {
   if (!bot) throw new Error("Bot not initialized — call initBot() first");
   if (!artifact) return false;

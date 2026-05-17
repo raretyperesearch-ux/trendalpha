@@ -11,7 +11,7 @@
         OINK
 ```
 
-**OINK is a cross-platform narrative-to-artifact engine detecting internet-native identities before market formation.**
+**OINK is an autonomous narrative intelligence engine preparing internet-native market deployment.**
 
 OINK was formerly TrendAlpha. TrendAlpha proved the first idea: internet trends can become market narratives before most people notice them. OINK takes the next step: it watches viral attention across social platforms, scores whether that attention could become a market, generates launch briefs, and prepares candidates for human review.
 
@@ -162,6 +162,14 @@ Ticker generation is intentionally conservative. OINK prefers short identity-cen
 
 Dry-run launch records are stored in `shadow_launches` when the Supabase migration is applied. If that table is missing, OINK falls back to `trend_snapshots` so scans keep running. These records are simulation artifacts only.
 
+## PumpPortal Deployment Skeleton
+
+OINK includes a PumpPortal provider skeleton for deployment preparation, not live execution. With `ENABLE_REAL_LAUNCHES=false`, the provider runs in dry-wire mode: it builds exact deployment payload shapes, prepares metadata, reserves image-upload placeholders, creates unsigned transaction placeholders, validates expected response fields, logs deployment audit events, persists `deployment_attempts`, and stops before broadcast.
+
+Deployment validation checks ticker length and format, metadata completeness, duplicate tickers, image prompt presence, launch readiness, and swarm pressure. Telegram diagnostics can show `OINK DEPLOYMENT READY` when a payload is valid, connected, and ready for review.
+
+Real launches remain disabled. OINK does not use funded wallets, private keys, signatures, transaction submission, or PumpPortal broadcast calls.
+
 When live providers are unavailable, `MEMORY_ONLY_LAUNCH_TEST_MODE=true` lets OINK load recent high-quality `narrative_cluster_snapshots`, generate dry-run PumpPortal payloads, persist them to `shadow_launches`, and send `OINK PREPARE LAUNCH` Telegram alerts. It only uses stored narrative memory and never broadcasts a launch.
 
 Use:
@@ -267,6 +275,7 @@ npm run scan
 npm run scan:dry
 npm run test-launch
 npm run test-launch-created
+npm run test-pumpportal
 npm run test-telegram-alert
 npm run test-shadow-launches
 npm run test-x

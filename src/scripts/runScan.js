@@ -10,6 +10,7 @@ import { applyLaunchWorthiness } from "../launchWorthiness.js";
 import { buildNarrativeClusters, getStrongNarrativeClusters } from "../narrativeClusters.js";
 import { prepareDryRunPumpPortalLaunch } from "../launchers/dryRunPumpPortalProvider.js";
 import { runMemoryOnlyLaunchTest } from "../shadowLaunches.js";
+import { prepareAndPersistDeploymentAttempt } from "../deployments.js";
 import { scoreTrend } from "../scoring.js";
 import { scoreLaunchOpportunity } from "../launchScoring.js";
 import { generateLaunchBrief } from "../launchBrief.js";
@@ -268,9 +269,14 @@ async function maybePrepareDryRunLaunch(cluster, existingTickers, currentAlertCo
   }
 
   const shadowLaunch = prepareDryRunPumpPortalLaunch(cluster, { existingTickers });
-  existingTickers.push(shadowLaunch.ticker);
   await saveShadowLaunch(shadowLaunch);
-  return sendDryRunLaunchAlert(shadowLaunch);
+  const sent = await sendDryRunLaunchAlert(shadowLaunch);
+  await prepareAndPersistDeploymentAttempt(shadowLaunch, {
+    existingTickers,
+    sendTelegram: sent,
+  });
+  existingTickers.push(shadowLaunch.ticker);
+  return sent;
 }
 
 function qualifiesForDryRunLaunch(cluster) {

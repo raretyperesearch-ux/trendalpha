@@ -7,6 +7,7 @@ import {
   wasShadowLaunchPreparedRecently,
 } from "./db.js";
 import { sendDryRunLaunchAlert } from "./telegram.js";
+import { prepareAndPersistDeploymentAttempt } from "./deployments.js";
 
 export async function runMemoryOnlyLaunchTest({
   force = false,
@@ -58,7 +59,6 @@ export async function runMemoryOnlyLaunchTest({
     }
 
     const shadowLaunch = prepareDryRunPumpPortalLaunch(cluster, { existingTickers });
-    existingTickers.push(shadowLaunch.ticker);
     stats.generated++;
     console.log(`   ✅ Payload generated: ${shadowLaunch.title} ($${shadowLaunch.ticker})`);
 
@@ -72,6 +72,12 @@ export async function runMemoryOnlyLaunchTest({
       const alerted = await sendDryRunLaunchAlert(shadowLaunch);
       if (alerted) stats.alerted++;
     }
+
+    await prepareAndPersistDeploymentAttempt(shadowLaunch, {
+      existingTickers,
+      sendTelegram,
+    });
+    existingTickers.push(shadowLaunch.ticker);
   }
 
   console.log(

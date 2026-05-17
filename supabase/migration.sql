@@ -155,6 +155,38 @@ CREATE INDEX IF NOT EXISTS idx_shadow_launches_readiness
 CREATE INDEX IF NOT EXISTS idx_shadow_launches_phase
   ON shadow_launches(narrative_phase);
 
+-- Deployment attempts — PumpPortal dry-wire/live skeleton audit, no secrets
+CREATE TABLE IF NOT EXISTS deployment_attempts (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  attempt_id TEXT NOT NULL UNIQUE,
+  cluster_id TEXT NOT NULL,
+  ticker TEXT NOT NULL,
+  payload JSONB DEFAULT '{}',
+  deployment_state TEXT DEFAULT 'preparing',
+  validation_result JSONB DEFAULT '{}',
+  mode TEXT DEFAULT 'DRY_WIRE',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE deployment_attempts
+  ADD COLUMN IF NOT EXISTS attempt_id TEXT,
+  ADD COLUMN IF NOT EXISTS cluster_id TEXT,
+  ADD COLUMN IF NOT EXISTS ticker TEXT,
+  ADD COLUMN IF NOT EXISTS payload JSONB DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS deployment_state TEXT DEFAULT 'preparing',
+  ADD COLUMN IF NOT EXISTS validation_result JSONB DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS mode TEXT DEFAULT 'DRY_WIRE',
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+
+CREATE INDEX IF NOT EXISTS idx_deployment_attempts_cluster_id
+  ON deployment_attempts(cluster_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_deployment_attempts_ticker
+  ON deployment_attempts(ticker);
+
+CREATE INDEX IF NOT EXISTS idx_deployment_attempts_state
+  ON deployment_attempts(deployment_state);
+
 -- ============================================================
 -- OPTIONAL: Row Level Security (enable if you want)
 -- ============================================================

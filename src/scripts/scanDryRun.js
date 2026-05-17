@@ -11,6 +11,7 @@ import { generateLaunchBrief } from "../launchBrief.js";
 import { formatCount } from "../tokens.js";
 import { buildNarrativeClusters, getStrongNarrativeClusters } from "../narrativeClusters.js";
 import { prepareDryRunPumpPortalLaunch } from "../launchers/dryRunPumpPortalProvider.js";
+import { preparePumpPortalDeployment } from "../launchers/pumpPortalProvider.js";
 
 const MAX_PREVIEW = parseInt(process.env.DRY_RUN_LIMIT || "10", 10);
 
@@ -50,6 +51,11 @@ if (clusters.length > 0) {
     console.log(`  Confidence: ${shadowLaunch.payload.launchConfidence}/100 | State: ${shadowLaunch.payload.lifecycleState}`);
     if (shadowLaunch.payload.sourceArtifactType) {
       console.log(`  Artifact: ${shadowLaunch.payload.sourceArtifactType} | strength ${shadowLaunch.payload.artifactStrength}/100 | visual ${shadowLaunch.payload.visualReuseMode}`);
+    }
+    const deploymentAttempt = preparePumpPortalDeployment(shadowLaunch, { existingTickers: tickers });
+    console.log(`  PumpPortal: ${deploymentAttempt.mode} | ${deploymentAttempt.deploymentState} | valid ${deploymentAttempt.validation.valid ? "yes" : "no"}`);
+    if (deploymentAttempt.validation.errors.length > 0) {
+      console.log(`  Deployment Errors: ${deploymentAttempt.validation.errors.join(", ")}`);
     }
     console.log(`  X Draft: ${shadowLaunch.payload.socialPostDraft.x.split("\n").join(" / ")}`);
   }

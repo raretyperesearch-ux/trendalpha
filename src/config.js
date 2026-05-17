@@ -48,6 +48,12 @@ export const config = {
     minLaunchScore: optionalInt("MIN_LAUNCH_SCORE", "82"),
     enableLaunchCandidates: optionalBool("ENABLE_LAUNCH_CANDIDATES", true),
     memoryOnlyLaunchTestMode: optionalBool("MEMORY_ONLY_LAUNCH_TEST_MODE", false),
+    enableRealLaunches: optionalBool("ENABLE_REAL_LAUNCHES", false),
+    deploymentMinReadiness: optionalInt("DEPLOYMENT_MIN_LAUNCH_READINESS", "80"),
+    deploymentMaxSwarmPressure: optionalInt("DEPLOYMENT_MAX_SWARM_PRESSURE", "40"),
+  },
+  pumpPortal: {
+    apiBaseUrl: optional("PUMPPORTAL_API_BASE_URL", "https://pumpportal.fun/api"),
   },
   providers: {
     tiktok: optionalBool("ENABLE_TIKTOK_PROVIDER", true),

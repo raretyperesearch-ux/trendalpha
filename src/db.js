@@ -15,6 +15,7 @@ let supabase = null;
 const narrativeMemory = new NarrativeMemoryService();
 let warnedMissingNarrativeTable = false;
 let warnedMissingShadowLaunchTable = false;
+let warnedMissingDeploymentAttemptsTable = false;
 
 /**
  * Initialize Supabase client
@@ -477,6 +478,61 @@ async function saveShadowLaunchFallback(shadowLaunch) {
 }
 
 // ----------------------------------------------------------
+// DEPLOYMENT ATTEMPTS — PumpPortal dry-wire/live skeleton audit
+// ----------------------------------------------------------
+
+export async function saveDeploymentAttempt(attempt) {
+  if (!supabase || !attempt?.attemptId) return false;
+
+  const row = {
+    attempt_id: String(attempt.attemptId).slice(0, 180),
+    cluster_id: String(attempt.clusterId || "").slice(0, 160),
+    ticker: String(attempt.ticker || "").slice(0, 16),
+    payload: attempt.payload || {},
+    deployment_state: String(attempt.deploymentState || "preparing").slice(0, 40),
+    validation_result: attempt.validation || {},
+    mode: String(attempt.mode || "DRY_WIRE").slice(0, 40),
+    created_at: new Date().toISOString(),
+  };
+
+  try {
+    const { error } = await supabase.from("deployment_attempts").insert(row);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    if (isMissingTableError(err)) {
+      warnMissingDeploymentAttemptsTable();
+      return saveDeploymentAttemptFallback(attempt);
+    }
+    console.error("❌ Failed to save deployment attempt:", err.message);
+    console.error("   Rejected deployment attempt:", JSON.stringify(getFieldDiagnostics(row)));
+    return saveDeploymentAttemptFallback(attempt);
+  }
+}
+
+async function saveDeploymentAttemptFallback(attempt) {
+  try {
+    const { error } = await supabase.from("trend_snapshots").insert({
+      trend_id: `deploy:${String(attempt.attemptId || "").slice(0, 120)}`,
+      trend_name: String(attempt.payload?.launchContext?.clusterName || attempt.ticker || "Deployment Attempt").slice(0, 255),
+      trend_type: "hashtag",
+      total_views: intValue(attempt.payload?.launchContext?.launchReadiness),
+      video_count: 0,
+      views_per_hour: 0,
+      score: intValue(attempt.payload?.launchContext?.identityCohesion),
+      score_breakdown: { deploymentAttempt: attempt },
+      scanned_at: new Date().toISOString(),
+    });
+    if (error) throw error;
+    console.log("   ✅ Saved deployment attempt via trend_snapshots fallback");
+    return true;
+  } catch (err) {
+    console.error("❌ Deployment attempt fallback failed:", err.message);
+    return false;
+  }
+}
+
+// ----------------------------------------------------------
 // ALERTS — track what we've sent
 // ----------------------------------------------------------
 
@@ -616,6 +672,12 @@ function warnMissingShadowLaunchTable() {
   if (warnedMissingShadowLaunchTable) return;
   warnedMissingShadowLaunchTable = true;
   console.warn("⚠️  shadow_launches table missing; using trend_snapshots fallback until Supabase migration is applied.");
+}
+
+function warnMissingDeploymentAttemptsTable() {
+  if (warnedMissingDeploymentAttemptsTable) return;
+  warnedMissingDeploymentAttemptsTable = true;
+  console.warn("⚠️  deployment_attempts table missing; using trend_snapshots fallback until Supabase migration is applied.");
 }
 
 function getFieldDiagnostics(row) {
