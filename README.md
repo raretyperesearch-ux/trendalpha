@@ -164,7 +164,9 @@ Dry-run launch records are stored in `shadow_launches` when the Supabase migrati
 
 ## PumpPortal Deployment Skeleton
 
-OINK includes a PumpPortal provider skeleton for deployment preparation, not live execution. With `ENABLE_REAL_LAUNCHES=false`, the provider runs in dry-wire mode: it builds exact deployment payload shapes, prepares metadata, reserves image-upload placeholders, creates unsigned transaction placeholders, validates expected response fields, logs deployment audit events, persists `deployment_attempts`, and stops before broadcast.
+OINK includes a provider-adapter deployment layer for deployment preparation, not live execution. PumpPortal is the first adapter. With `ENABLE_REAL_LAUNCHES=false`, the adapter runs in dry-wire mode: it builds exact deployment payload shapes, prepares metadata, reserves image-upload placeholders, creates unsigned transaction placeholders, validates expected response fields, logs deployment audit events, persists `deployment_attempts`, and stops before broadcast.
+
+The generic `LaunchAdapter` contract separates OINK intelligence from provider transport details. Adapters expose `prepareMetadata`, `uploadAssets`, `buildDeploymentPayload`, `validatePayload`, `prepareTransaction`, `parseResponse`, and `classifyFailure`. PumpPortal also reports capabilities, provider version, payload schema version, endpoint assumptions, and compatibility warnings so future API changes fail gracefully instead of crashing scans.
 
 Deployment validation checks ticker length and format, metadata completeness, duplicate tickers, image prompt presence, launch readiness, and swarm pressure. Telegram diagnostics can show `OINK DEPLOYMENT READY` when a payload is valid, connected, and ready for review.
 
@@ -303,6 +305,7 @@ npm run scan
 npm run scan:dry
 npm run test-launch
 npm run test-launch-created
+npm run test-launch-adapter
 npm run test-metadata
 npm run test-image-pipeline
 npm run test-pumpportal

@@ -1,4 +1,5 @@
 import { config } from "../config.js";
+import { LaunchAdapter, createMockProviderResponse } from "./launchAdapter.js";
 import { prepareLaunchMetadata } from "../metadataPipeline.js";
 import { prepareHostedPumpPortalMetadata } from "../metadataAssets.js";
 
@@ -12,8 +13,25 @@ const DEPLOYMENT_STATES = {
   FAILED: "failed",
 };
 
-export class PumpPortalProvider {
+export class PumpPortalProvider extends LaunchAdapter {
   constructor({ existingTickers = [], enableRealLaunches = config.launch.enableRealLaunches, imageOptions = {} } = {}) {
+    super({
+      provider: "PumpPortal",
+      providerVersion: "dry-wire-0.2.0",
+      payloadSchemaVersion: "pumpportal-create-token-v1",
+      endpointAssumptions: [
+        "create-token response is expected to include signature, mint, metadataUri, transaction",
+        "upload endpoint shape is not called until real launches are explicitly enabled",
+      ],
+      capabilities: {
+        metadataUpload: true,
+        imageUpload: true,
+        transactionPrep: "stub",
+        responseValidation: true,
+        dryWireSupport: true,
+        broadcast: false,
+      },
+    });
     this.existingTickers = new Set(existingTickers.map(normalizeTicker).filter(Boolean));
     this.enableRealLaunches = Boolean(enableRealLaunches);
     this.imageOptions = imageOptions;
@@ -25,10 +43,7 @@ export class PumpPortalProvider {
     auditLog.push(audit("payload_generation", "started", "Building PumpPortal deployment request shape"));
 
     let payload = this.buildDeploymentPayload(shadowLaunch);
-    const metadataPipeline = prepareLaunchMetadata(
-      { shadowLaunch, deploymentPayload: payload },
-      { imageOptions: this.imageOptions }
-    );
+    const metadataPipeline = this.prepareMetadata({ shadowLaunch, deploymentPayload: payload });
     payload = {
       ...payload,
       metadata: {
@@ -44,7 +59,7 @@ export class PumpPortalProvider {
     auditLog.push(audit("image_artifact_preparation", metadataPipeline.imageAsset.validationStatus, payload.metadata.imagePrompt ? "Image asset pipeline completed" : "Image prompt missing"));
 
     auditLog.push(audit("validation", "started", "Validating deployment payload"));
-    const validation = this.validateDeploymentPayload(payload);
+    const validation = this.validatePayload(payload);
     auditLog.push(
       validation.valid
         ? audit("validation", "passed", "Deployment payload passed dry-wire validation")
@@ -77,6 +92,10 @@ export class PumpPortalProvider {
         apiBaseUrl: config.pumpPortal.apiBaseUrl,
         sdkLayer: "skeleton",
       },
+      adapter: this.buildDiagnostics({
+        mode: this.enableRealLaunches ? "LIVE_DISABLED_SKELETON" : "DRY_WIRE",
+        compatibility: this.getCompatibility(validation.warnings || []),
+      }),
       validation,
       payload,
       simulation,
@@ -87,6 +106,17 @@ export class PumpPortalProvider {
 
   async prepareMetadataPackage(deploymentAttempt) {
     return prepareHostedPumpPortalMetadata(deploymentAttempt);
+  }
+
+  prepareMetadata({ shadowLaunch, deploymentPayload }) {
+    return prepareLaunchMetadata(
+      { shadowLaunch, deploymentPayload },
+      { imageOptions: this.imageOptions }
+    );
+  }
+
+  async uploadAssets(deploymentAttempt, options = {}) {
+    return prepareHostedPumpPortalMetadata(deploymentAttempt, options);
   }
 
   buildDeploymentPayload(shadowLaunch) {
@@ -135,7 +165,7 @@ export class PumpPortalProvider {
     };
   }
 
-  validateDeploymentPayload(payload) {
+  validatePayload(payload) {
     const errors = [];
     const warnings = [];
     const symbol = payload.token.symbol;
@@ -171,6 +201,67 @@ export class PumpPortalProvider {
     };
   }
 
+  validateDeploymentPayload(payload) {
+    return this.validatePayload(payload);
+  }
+
+  prepareTransaction(payload, validation = this.validatePayload(payload)) {
+    if (!validation.valid) {
+      return {
+        status: "blocked",
+        broadcastReady: false,
+        note: "Transaction placeholder blocked by payload validation.",
+        errors: validation.errors,
+      };
+    }
+    return {
+      status: "prepared_stub",
+      broadcastReady: false,
+      transaction: "unsigned-transaction-placeholder",
+      note: "Transaction preparation stub only. No wallet, signing, or broadcast.",
+    };
+  }
+
+  parseResponse(response) {
+    if (!response || typeof response !== "object" || Array.isArray(response)) {
+      return {
+        valid: false,
+        failureClass: "schema_mismatch",
+        errors: ["response_not_object"],
+        parsed: null,
+      };
+    }
+    if (response.status === "error" || response.error) {
+      return {
+        valid: false,
+        failureClass: this.classifyFailure(response.error || response),
+        errors: [String(response.error || "provider_error")],
+        parsed: null,
+      };
+    }
+    const required = ["signature", "mint", "metadataUri", "transaction"];
+    const missing = required.filter((field) => !response[field]);
+    if (missing.length) {
+      return {
+        valid: false,
+        failureClass: "schema_mismatch",
+        errors: missing.map((field) => `missing_${field}`),
+        parsed: null,
+      };
+    }
+    return {
+      valid: true,
+      failureClass: null,
+      errors: [],
+      parsed: {
+        signature: response.signature,
+        mint: response.mint,
+        metadataUri: response.metadataUri,
+        transaction: response.transaction,
+      },
+    };
+  }
+
   simulateDeploymentRequest(payload, validation, auditLog) {
     const expectedActions = [
       "prepare token metadata",
@@ -187,11 +278,28 @@ export class PumpPortalProvider {
       status: validation.valid ? DEPLOYMENT_STATES.SIMULATED : DEPLOYMENT_STATES.FAILED,
       broadcast: false,
       expectedActions,
+      transaction: this.prepareTransaction(payload, validation),
       responseValidation: {
         expectedFields: ["signature", "mint", "metadataUri", "transaction"],
         status: "placeholder",
       },
       note: "ENABLE_REAL_LAUNCHES=false, so no request is broadcast and no transaction is submitted.",
+    };
+  }
+
+  runSimulationHarness({ mutation = "valid", payload = null, validation = null } = {}) {
+    const candidatePayload = payload || this.buildDeploymentPayload({ payload: {}, title: "Mock", ticker: "MOCK", clusterId: "mock" });
+    const candidateValidation = validation || this.validatePayload(candidatePayload);
+    const response = createMockProviderResponse({ mutation, payload: candidatePayload });
+    const parsed = this.parseResponse(response);
+    return {
+      mutation,
+      payloadValid: candidateValidation.valid,
+      response,
+      parsed,
+      failureClass: parsed.failureClass || null,
+      deploymentState: parsed.valid && candidateValidation.valid ? DEPLOYMENT_STATES.SIMULATED : DEPLOYMENT_STATES.FAILED,
+      preservedState: true,
     };
   }
 }

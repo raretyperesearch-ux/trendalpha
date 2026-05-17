@@ -689,6 +689,40 @@ export function formatDeploymentReadyAlert(deploymentAttempt) {
   return constrainTelegramMessage(msg);
 }
 
+export function formatDeploymentAdapterAlert(deploymentAttempt) {
+  const adapter = deploymentAttempt.adapter || {};
+  const capabilities = adapter.capabilities || {};
+  const compatibility = adapter.compatibility || {};
+
+  let msg = `🐷 <b>OINK DEPLOYMENT ADAPTER</b>\n\n`;
+  msg += `Provider:\n<b>${escapeHtml(adapter.provider || "PumpPortal")}</b>\n\n`;
+  msg += `Capabilities:\n`;
+  msg += `metadataUpload ${formatCapabilityIcon(capabilities.metadataUpload)}\n`;
+  msg += `imageUpload ${formatCapabilityIcon(capabilities.imageUpload)}\n`;
+  msg += `transactionPrep ${formatCapabilityIcon(capabilities.transactionPrep)}\n`;
+  msg += `responseValidation ${formatCapabilityIcon(capabilities.responseValidation)}\n`;
+  msg += `broadcast ${formatCapabilityIcon(capabilities.broadcast)}\n\n`;
+  msg += `Compatibility:\n<b>${escapeHtml(compatibility.status || "STABLE")}</b>\n\n`;
+  msg += `Mode:\n<b>${escapeHtml(adapter.mode || deploymentAttempt.mode || "DRY-WIRE")}</b>\n\n`;
+  msg += `<code>`;
+  msg += `Provider Ver: ${adapter.adapterVersion?.providerVersion || "unknown"}\n`;
+  msg += `Schema Ver:   ${adapter.adapterVersion?.payloadSchemaVersion || "unknown"}\n`;
+  msg += `Dry Wire:     ${adapter.dryWire ? "yes" : "no"}\n`;
+  msg += `Broadcast:    ${adapter.broadcastEnabled ? "yes" : "no"}`;
+  msg += `</code>`;
+  if (compatibility.warnings?.length) {
+    msg += `\n\n<b>Compatibility Notes:</b>\n`;
+    for (const warning of compatibility.warnings.slice(0, 4)) msg += `• ${escapeHtml(warning)}\n`;
+  }
+  return constrainTelegramMessage(msg);
+}
+
+function formatCapabilityIcon(value) {
+  if (value === true) return "✅";
+  if (value === false || value == null) return "❌";
+  return "⚠️";
+}
+
 export async function sendArtifactPreview({ trend, artifact = trend?.memeticArtifact }) {
   if (!bot) throw new Error("Bot not initialized — call initBot() first");
   if (!artifact) return false;
