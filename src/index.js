@@ -11,16 +11,20 @@ import { fetchAllAttentionSources } from "./providers/index.js";
 import { applyXSnapshotPersistence } from "./providers/xProvider.js";
 import { applyLaunchWorthiness } from "./launchWorthiness.js";
 import { buildNarrativeClusters, getStrongNarrativeClusters } from "./narrativeClusters.js";
+import { prepareDryRunPumpPortalLaunch } from "./launchers/dryRunPumpPortalProvider.js";
 import { scoreTrend } from "./scoring.js";
 import { scoreLaunchOpportunity } from "./launchScoring.js";
 import { generateLaunchBrief } from "./launchBrief.js";
 import { preparePumpFunLaunch } from "./launchers/pumpfun.js";
 import { findToken } from "./tokens.js";
-import { initBot, sendAlert, sendDigest, sendLaunchCandidate, sendNarrativeClusterAlert } from "./telegram.js";
+import { initBot, sendAlert, sendDigest, sendLaunchCandidate, sendNarrativeClusterAlert, sendDryRunLaunchAlert } from "./telegram.js";
 import {
   initDB,
   saveTrendSnapshot,
   saveNarrativeClusterSnapshot,
+  saveShadowLaunch,
+  getRecentShadowLaunchTickers,
+  wasShadowLaunchPreparedRecently,
   getRecentNarrativeClusterSnapshots,
   wasClusterAlertedRecently,
   recordClusterAlert,
@@ -223,22 +227,66 @@ async function processNarrativeClusters(trends, alertsSent) {
 
   let sentCount = 0;
   const strongClusters = getStrongNarrativeClusters(clusters).slice(0, 2);
+  const existingTickers = await getRecentShadowLaunchTickers();
   for (const cluster of strongClusters) {
     if (alertsSent + sentCount >= MAX_ALERTS_PER_SCAN) break;
     const alreadyAlerted = await wasClusterAlertedRecently(cluster.clusterId);
     if (alreadyAlerted && cluster.lifecycleState !== "reigniting") {
       console.log(`   ⏭️  Narrative cluster already alerted: ${cluster.canonicalEntity}`);
-      continue;
+    } else {
+      const sent = await sendNarrativeClusterAlert(cluster);
+      if (sent) {
+        sentCount++;
+        await recordClusterAlert(cluster);
+        await sleep(DELAY_BETWEEN_ALERTS_MS);
+      }
     }
-    const sent = await sendNarrativeClusterAlert(cluster);
-    if (sent) {
+
+    const shadowSent = await maybePrepareDryRunLaunch(cluster, existingTickers, alertsSent + sentCount);
+    if (shadowSent) {
       sentCount++;
-      await recordClusterAlert(cluster);
       await sleep(DELAY_BETWEEN_ALERTS_MS);
     }
   }
 
   return sentCount;
+}
+
+async function maybePrepareDryRunLaunch(cluster, existingTickers, currentAlertCount) {
+  if (currentAlertCount >= MAX_ALERTS_PER_SCAN) return false;
+  if (!qualifiesForDryRunLaunch(cluster)) {
+    logDryRunRejection(cluster);
+    return false;
+  }
+  if (await wasShadowLaunchPreparedRecently(cluster.clusterId)) {
+    console.log(`   ⏭️  Shadow launch already prepared recently: ${cluster.canonicalEntity}`);
+    return false;
+  }
+
+  const shadowLaunch = prepareDryRunPumpPortalLaunch(cluster, { existingTickers });
+  existingTickers.push(shadowLaunch.ticker);
+  await saveShadowLaunch(shadowLaunch);
+  return sendDryRunLaunchAlert(shadowLaunch);
+}
+
+function qualifiesForDryRunLaunch(cluster) {
+  if (!cluster) return false;
+  if (cluster.launchWindow === "SATURATED" || cluster.launchWindow === "LATE_STAGE") return false;
+  if ((cluster.swarmPressure || 0) >= 65) return false;
+  if ((cluster.saturationPressure || 0) >= 72) return false;
+  return (
+    (cluster.launchWindow === "PRIME_WINDOW" && (cluster.launchReadiness || 0) >= 75) ||
+    (cluster.launchWindow === "FORMING_WINDOW" && (cluster.launchReadiness || 0) >= 72) ||
+    (cluster.earlyConviction && (cluster.launchReadiness || 0) >= 70)
+  );
+}
+
+function logDryRunRejection(cluster) {
+  console.log(
+    `   🧪 Dry-run launch rejected: ${cluster.canonicalEntity} ` +
+    `window=${cluster.launchWindow} readiness=${cluster.launchReadiness}/100 ` +
+    `swarm=${cluster.swarmPressure}/100 saturation=${cluster.saturationPressure}/100`
+  );
 }
 
 // ----------------------------------------------------------

@@ -112,6 +112,49 @@ CREATE INDEX IF NOT EXISTS idx_narrative_clusters_launch_readiness
 CREATE INDEX IF NOT EXISTS idx_narrative_clusters_persistence
   ON narrative_cluster_snapshots(persistence_score DESC);
 
+-- Shadow launches — dry-run deployment metadata only, no transactions
+CREATE TABLE IF NOT EXISTS shadow_launches (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  launch_id TEXT NOT NULL UNIQUE,
+  cluster_id TEXT NOT NULL,
+  ticker TEXT NOT NULL,
+  title TEXT NOT NULL,
+  launch_readiness INT DEFAULT 0,
+  narrative_phase TEXT DEFAULT 'forming',
+  swarm_pressure INT DEFAULT 0,
+  identity_strength INT DEFAULT 0,
+  launch_reasoning JSONB DEFAULT '[]',
+  payload JSONB DEFAULT '{}',
+  lifecycle_state TEXT DEFAULT 'preparing',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE shadow_launches
+  ADD COLUMN IF NOT EXISTS launch_id TEXT,
+  ADD COLUMN IF NOT EXISTS cluster_id TEXT,
+  ADD COLUMN IF NOT EXISTS ticker TEXT,
+  ADD COLUMN IF NOT EXISTS title TEXT,
+  ADD COLUMN IF NOT EXISTS launch_readiness INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS narrative_phase TEXT DEFAULT 'forming',
+  ADD COLUMN IF NOT EXISTS swarm_pressure INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS identity_strength INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS launch_reasoning JSONB DEFAULT '[]',
+  ADD COLUMN IF NOT EXISTS payload JSONB DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS lifecycle_state TEXT DEFAULT 'preparing',
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+
+CREATE INDEX IF NOT EXISTS idx_shadow_launches_cluster_id
+  ON shadow_launches(cluster_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_shadow_launches_ticker
+  ON shadow_launches(ticker);
+
+CREATE INDEX IF NOT EXISTS idx_shadow_launches_readiness
+  ON shadow_launches(launch_readiness DESC);
+
+CREATE INDEX IF NOT EXISTS idx_shadow_launches_phase
+  ON shadow_launches(narrative_phase);
+
 -- ============================================================
 -- OPTIONAL: Row Level Security (enable if you want)
 -- ============================================================

@@ -11,7 +11,7 @@
         OINK
 ```
 
-**OINK is a persistent narrative intelligence engine tracking internet-native market formation over time.**
+**OINK is an autonomous attention-layer engine preparing internet-native narratives for market formation.**
 
 OINK was formerly TrendAlpha. TrendAlpha proved the first idea: internet trends can become market narratives before most people notice them. OINK takes the next step: it watches viral attention across social platforms, scores whether that attention could become a market, generates launch briefs, and prepares candidates for human review.
 
@@ -130,15 +130,24 @@ Apply `supabase/migration.sql` in the Supabase SQL editor to create or update th
 ```txt
 Viral Post
   -> Attention Scanner
-  -> Launch Score Engine
-  -> Launch Brief
-  -> Autonomous Market Prepared
+  -> Narrative Memory
+  -> Launch Timing Engine
+  -> PumpPortal Dry Run
+  -> Shadow Launch Payload
   -> Launch Review
   -> Fees
   -> $OINK Buybacks
 ```
 
 For now, OINK only prepares launch candidates. It does not launch tokens.
+
+## PumpPortal Dry Runs
+
+OINK can prepare PumpPortal-style deployment metadata without broadcasting a transaction. A dry-run launch payload includes token name, ticker, description, narrative summary, archetype, launch reasoning, launch confidence, launch timing, image prompt, X draft, Telegram draft, and Pump.fun description draft.
+
+Ticker generation is intentionally conservative. OINK prefers short identity-centric tickers and rejects weak or polluted patterns such as generic meme suffixes, duplicate tickers, and stuffed `AIINU`-style symbols.
+
+Dry-run launch records are stored in `shadow_launches` when the Supabase migration is applied. If that table is missing, OINK falls back to `trend_snapshots` so scans keep running. These records are simulation artifacts only.
 
 ## What OINK Produces
 
@@ -149,6 +158,7 @@ OINK turns attention into structured outputs:
 - **Suggested name and ticker**: a clean market framing.
 - **Launch thesis**: why the attention matters before a market fully forms.
 - **Risk flags**: reasons a candidate may need review or rejection.
+- **Shadow launch payloads**: dry-run PumpPortal metadata for high-conviction clusters.
 - **Telegram cards**: launch candidate alerts for fast review.
 - **Terminal dashboard**: latest scanned trends, launch scores, ticker suggestions, token status, and buyback flywheel.
 
@@ -250,8 +260,10 @@ It does not:
 - Submit transactions
 - Launch tokens
 - Execute autonomous trading
+- Broadcast PumpPortal transactions
+- Use funded wallets
 
-The launch adapter is a stub that prepares metadata only.
+The launch adapters prepare metadata only. PumpPortal support is dry-run simulation infrastructure, not a deployment path.
 
 ## Current Direction
 

@@ -14,6 +14,7 @@ import { NarrativeMemoryService } from "./narrativeMemoryService.js";
 let supabase = null;
 const narrativeMemory = new NarrativeMemoryService();
 let warnedMissingNarrativeTable = false;
+let warnedMissingShadowLaunchTable = false;
 
 /**
  * Initialize Supabase client
@@ -271,6 +272,104 @@ export async function recordClusterAlert(cluster) {
 }
 
 // ----------------------------------------------------------
+// SHADOW LAUNCHES — dry-run deployment metadata only
+// ----------------------------------------------------------
+
+export async function saveShadowLaunch(shadowLaunch) {
+  if (!supabase || !shadowLaunch?.launchId) return false;
+
+  const row = {
+    launch_id: String(shadowLaunch.launchId).slice(0, 180),
+    cluster_id: String(shadowLaunch.clusterId || "").slice(0, 160),
+    ticker: String(shadowLaunch.ticker || "").slice(0, 16),
+    title: String(shadowLaunch.title || "").slice(0, 255),
+    launch_readiness: intValue(shadowLaunch.launchReadiness),
+    narrative_phase: String(shadowLaunch.narrativePhase || "forming").slice(0, 40),
+    swarm_pressure: intValue(shadowLaunch.swarmPressure),
+    identity_strength: intValue(shadowLaunch.identityStrength),
+    launch_reasoning: shadowLaunch.launchReasoning || [],
+    payload: shadowLaunch.payload || {},
+    lifecycle_state: shadowLaunch.payload?.lifecycleState || "simulated",
+    created_at: new Date().toISOString(),
+  };
+
+  try {
+    const { error } = await supabase.from("shadow_launches").insert(row);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    if (isMissingTableError(err)) {
+      warnMissingShadowLaunchTable();
+      return saveShadowLaunchFallback(shadowLaunch);
+    }
+    console.error("❌ Failed to save shadow launch:", err.message);
+    console.error("   Rejected shadow launch:", JSON.stringify(getFieldDiagnostics(row)));
+    return saveShadowLaunchFallback(shadowLaunch);
+  }
+}
+
+export async function getRecentShadowLaunchTickers(hours = 72) {
+  if (!supabase) return [];
+
+  try {
+    const since = new Date(Date.now() - hours * 3600000).toISOString();
+    const { data, error } = await supabase
+      .from("shadow_launches")
+      .select("ticker")
+      .gte("created_at", since)
+      .limit(500);
+    if (error) throw error;
+    return (data || []).map((row) => row.ticker).filter(Boolean);
+  } catch (err) {
+    if (isMissingTableError(err)) warnMissingShadowLaunchTable();
+    else console.error("❌ Failed to load shadow launch tickers:", err.message);
+    return [];
+  }
+}
+
+export async function wasShadowLaunchPreparedRecently(clusterId, hours = 24) {
+  if (!supabase || !clusterId) return false;
+
+  try {
+    const since = new Date(Date.now() - hours * 3600000).toISOString();
+    const { data, error } = await supabase
+      .from("shadow_launches")
+      .select("launch_id")
+      .eq("cluster_id", clusterId)
+      .gte("created_at", since)
+      .limit(1);
+    if (error) throw error;
+    return Boolean(data?.length);
+  } catch (err) {
+    if (isMissingTableError(err)) warnMissingShadowLaunchTable();
+    else console.error("❌ Shadow launch dedupe check failed:", err.message);
+    return false;
+  }
+}
+
+async function saveShadowLaunchFallback(shadowLaunch) {
+  try {
+    const { error } = await supabase.from("trend_snapshots").insert({
+      trend_id: `shadow:${String(shadowLaunch.launchId || "").slice(0, 120)}`,
+      trend_name: String(shadowLaunch.title || "Shadow Launch").slice(0, 255),
+      trend_type: "hashtag",
+      total_views: intValue(shadowLaunch.payload?.narrative?.launchReadiness),
+      video_count: 0,
+      views_per_hour: 0,
+      score: intValue(shadowLaunch.launchReadiness),
+      score_breakdown: { shadowLaunch },
+      scanned_at: new Date().toISOString(),
+    });
+    if (error) throw error;
+    console.log("   ✅ Saved shadow launch via trend_snapshots fallback");
+    return true;
+  } catch (err) {
+    console.error("❌ Shadow launch fallback failed:", err.message);
+    return false;
+  }
+}
+
+// ----------------------------------------------------------
 // ALERTS — track what we've sent
 // ----------------------------------------------------------
 
@@ -404,4 +503,22 @@ function warnMissingNarrativeTable() {
   if (warnedMissingNarrativeTable) return;
   warnedMissingNarrativeTable = true;
   console.warn("⚠️  narrative_cluster_snapshots table missing; using trend_snapshots fallback until Supabase migration is applied.");
+}
+
+function warnMissingShadowLaunchTable() {
+  if (warnedMissingShadowLaunchTable) return;
+  warnedMissingShadowLaunchTable = true;
+  console.warn("⚠️  shadow_launches table missing; using trend_snapshots fallback until Supabase migration is applied.");
+}
+
+function getFieldDiagnostics(row) {
+  return Object.fromEntries(
+    Object.entries(row).map(([key, value]) => [
+      key,
+      {
+        type: Array.isArray(value) ? "array" : typeof value,
+        value: typeof value === "object" && value !== null ? "[object]" : String(value).slice(0, 120),
+      },
+    ])
+  );
 }

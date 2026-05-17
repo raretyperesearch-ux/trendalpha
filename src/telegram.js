@@ -565,6 +565,45 @@ export async function sendNarrativeClusterAlert(cluster) {
   return sent;
 }
 
+export async function sendDryRunLaunchAlert(shadowLaunch) {
+  if (!bot) throw new Error("Bot not initialized — call initBot() first");
+
+  const message = formatDryRunLaunchAlert(shadowLaunch);
+  const sent = await sendTelegramWithFallback({
+    label: `shadow:${shadowLaunch.launchId || shadowLaunch.ticker}`,
+    richHtml: message,
+    compactHtml: message,
+    minimalText: buildMinimalAlertText({
+      title: "OINK PREPARE LAUNCH",
+      name: `${shadowLaunch.title} ($${shadowLaunch.ticker})`,
+      score: shadowLaunch.launchReadiness,
+    }),
+  });
+  if (sent) console.log(`📤 Dry-run launch alert sent: ${shadowLaunch.title} ($${shadowLaunch.ticker})`);
+  return sent;
+}
+
+export function formatDryRunLaunchAlert(shadowLaunch) {
+  const payload = shadowLaunch.payload || {};
+  const narrative = payload.narrative || {};
+  const timing = payload.launchTiming || {};
+
+  let msg = `🐷 <b>OINK PREPARE LAUNCH</b>\n\n`;
+  msg += `Narrative:\n<b>${escapeHtml(narrative.clusterName || shadowLaunch.title)}</b>\n\n`;
+  msg += `Ticker:\n<b>$${escapeHtml(shadowLaunch.ticker)}</b>\n\n`;
+  msg += `Narrative Phase:\n<b>${escapeHtml(formatLabel(shadowLaunch.narrativePhase || narrative.phase || "forming"))}</b>\n\n`;
+  msg += `Launch Readiness:\n<b>${Number(shadowLaunch.launchReadiness || 0)}/100</b>\n\n`;
+  msg += `Swarm Pressure:\n<b>${escapeHtml(labelPressure(shadowLaunch.swarmPressure))}</b>\n\n`;
+  msg += `Launch Window:\n<b>${escapeHtml(timing.idealLaunchWindow || "WATCH")}</b>\n\n`;
+  msg += `Deployment:\n<b>DRY RUN</b>\n\n`;
+  msg += `<b>Reasoning:</b>\n`;
+  for (const reason of (shadowLaunch.launchReasoning || []).slice(0, 4)) {
+    msg += `• ${escapeHtml(reason)}\n`;
+  }
+  msg += `\n<i>No transaction submitted. No wallet used.</i>`;
+  return constrainTelegramMessage(msg);
+}
+
 export function formatNarrativeClusterAlert(cluster, { mode = "rich" } = {}) {
   const topPosts = (cluster.relatedPosts || [])
     .slice()

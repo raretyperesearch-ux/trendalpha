@@ -10,6 +10,7 @@ import { scoreLaunchOpportunity } from "../launchScoring.js";
 import { generateLaunchBrief } from "../launchBrief.js";
 import { formatCount } from "../tokens.js";
 import { buildNarrativeClusters, getStrongNarrativeClusters } from "../narrativeClusters.js";
+import { prepareDryRunPumpPortalLaunch } from "../launchers/dryRunPumpPortalProvider.js";
 
 const MAX_PREVIEW = parseInt(process.env.DRY_RUN_LIMIT || "10", 10);
 
@@ -38,6 +39,18 @@ if (clusters.length > 0) {
     );
   }
   console.log(`Strong cluster alerts that would send: ${strongClusters.length}\n`);
+  const tickers = [];
+  for (const cluster of strongClusters.slice(0, 3)) {
+    if (!qualifiesForDryRunLaunch(cluster)) continue;
+    const shadowLaunch = prepareDryRunPumpPortalLaunch(cluster, { existingTickers: tickers });
+    tickers.push(shadowLaunch.ticker);
+    console.log("Dry-run PumpPortal payload:");
+    console.log(`- ${shadowLaunch.title} ($${shadowLaunch.ticker})`);
+    console.log(`  Window: ${shadowLaunch.payload.launchTiming.idealLaunchWindow} | Timing: ${shadowLaunch.payload.launchTiming.idealLaunchTiming}`);
+    console.log(`  Confidence: ${shadowLaunch.payload.launchConfidence}/100 | State: ${shadowLaunch.payload.lifecycleState}`);
+    console.log(`  X Draft: ${shadowLaunch.payload.socialPostDraft.x.split("\n").join(" / ")}`);
+  }
+  if (strongClusters.length > 0) console.log("");
 }
 
 for (const trend of trends.slice(0, MAX_PREVIEW)) {
@@ -96,4 +109,16 @@ function qualifiesForLaunchReview(launchScore) {
     return launchScore.launchReadiness >= 75 || launchScore.total >= 75;
   }
   return launchScore.total >= config.launch.minLaunchScore;
+}
+
+function qualifiesForDryRunLaunch(cluster) {
+  if (!cluster) return false;
+  if (cluster.launchWindow === "SATURATED" || cluster.launchWindow === "LATE_STAGE") return false;
+  if ((cluster.swarmPressure || 0) >= 65) return false;
+  if ((cluster.saturationPressure || 0) >= 72) return false;
+  return (
+    (cluster.launchWindow === "PRIME_WINDOW" && (cluster.launchReadiness || 0) >= 75) ||
+    (cluster.launchWindow === "FORMING_WINDOW" && (cluster.launchReadiness || 0) >= 72) ||
+    (cluster.earlyConviction && (cluster.launchReadiness || 0) >= 70)
+  );
 }
