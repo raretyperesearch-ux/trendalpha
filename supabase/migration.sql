@@ -187,6 +187,42 @@ CREATE INDEX IF NOT EXISTS idx_deployment_attempts_ticker
 CREATE INDEX IF NOT EXISTS idx_deployment_attempts_state
   ON deployment_attempts(deployment_state);
 
+-- Launch image/metadata assets — dry-wire asset preparation only
+CREATE TABLE IF NOT EXISTS launch_assets (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  launch_id TEXT NOT NULL,
+  cluster_id TEXT,
+  ticker TEXT,
+  asset_type TEXT DEFAULT 'launch_image',
+  prompt TEXT,
+  image_url TEXT,
+  local_path TEXT,
+  quality_score INT DEFAULT 0,
+  validation_status TEXT DEFAULT 'draft',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE launch_assets
+  ADD COLUMN IF NOT EXISTS launch_id TEXT,
+  ADD COLUMN IF NOT EXISTS cluster_id TEXT,
+  ADD COLUMN IF NOT EXISTS ticker TEXT,
+  ADD COLUMN IF NOT EXISTS asset_type TEXT DEFAULT 'launch_image',
+  ADD COLUMN IF NOT EXISTS prompt TEXT,
+  ADD COLUMN IF NOT EXISTS image_url TEXT,
+  ADD COLUMN IF NOT EXISTS local_path TEXT,
+  ADD COLUMN IF NOT EXISTS quality_score INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS validation_status TEXT DEFAULT 'draft',
+  ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+
+CREATE INDEX IF NOT EXISTS idx_launch_assets_launch_id
+  ON launch_assets(launch_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_launch_assets_ticker
+  ON launch_assets(ticker);
+
+CREATE INDEX IF NOT EXISTS idx_launch_assets_validation
+  ON launch_assets(validation_status);
+
 -- ============================================================
 -- OPTIONAL: Row Level Security (enable if you want)
 -- ============================================================

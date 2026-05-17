@@ -604,6 +604,53 @@ export async function sendDeploymentReadyAlert(deploymentAttempt) {
   return sent;
 }
 
+export async function sendMetadataReadyAlert(deploymentAttempt) {
+  if (!bot) throw new Error("Bot not initialized — call initBot() first");
+
+  const message = formatMetadataReadyAlert(deploymentAttempt);
+  const sent = await sendTelegramWithFallback({
+    label: `metadata:${deploymentAttempt.attemptId || deploymentAttempt.ticker}`,
+    richHtml: message,
+    compactHtml: message,
+    minimalText: buildMinimalAlertText({
+      title: "OINK METADATA READY",
+      name: `$${deploymentAttempt.ticker}`,
+      score: deploymentAttempt.payload?.metadata?.imageUpload?.qualityScore,
+    }),
+  });
+  if (sent) console.log(`📤 Metadata preview sent: $${deploymentAttempt.ticker}`);
+  return sent;
+}
+
+export function formatMetadataReadyAlert(deploymentAttempt) {
+  const payload = deploymentAttempt.payload || {};
+  const metadata = payload.metadata || {};
+  const imageAsset = metadata.imageUpload || {};
+  const visualScore = imageAsset.visualScore || {};
+  const metadataReady = payload.metadataState === "metadata_ready";
+
+  let msg = `🐷 <b>OINK METADATA READY</b>\n\n`;
+  msg += `Ticker:\n<b>$${escapeHtml(deploymentAttempt.ticker || payload.token?.symbol || "OINK")}</b>\n\n`;
+  msg += `Name:\n<b>${escapeHtml(metadata.name || payload.token?.name || "Unknown")}</b>\n\n`;
+  msg += `Image Status:\n<b>${escapeHtml(formatLabel(imageAsset.validationStatus || "image_needed"))}</b>\n\n`;
+  msg += `Visual Score:\n<b>${Number(imageAsset.qualityScore || 0)}/100</b>\n\n`;
+  msg += `Thumbnail Strength:\n<b>${escapeHtml(visualScore.thumbnailStrengthLabel || "LOW")}</b>\n\n`;
+  msg += `Metadata:\n<b>${metadataReady ? "READY" : "NOT READY"}</b>\n\n`;
+  msg += `Mode:\n<b>${escapeHtml(deploymentAttempt.mode || "DRY_WIRE")}</b>\n\n`;
+  msg += `<code>`;
+  msg += `Archetype: ${metadata.identityArchetype || "trendwave"}\n`;
+  msg += `Image:     ${metadata.image ? "present" : "missing"}\n`;
+  msg += `State:     ${payload.metadataState || "draft"}\n`;
+  msg += `Prompt:    ${imageAsset.prompt ? "present" : "missing"}`;
+  msg += `</code>\n`;
+  if (payload.metadataValidation?.errors?.length) {
+    msg += `\n<b>Metadata Blocks:</b>\n`;
+    for (const error of payload.metadataValidation.errors.slice(0, 5)) msg += `• ${escapeHtml(error)}\n`;
+  }
+  msg += `\n<i>Dry-wire only. Metadata is prepared for review, not launch.</i>`;
+  return constrainTelegramMessage(msg);
+}
+
 export function formatDeploymentReadyAlert(deploymentAttempt) {
   const payload = deploymentAttempt.payload || {};
   const context = payload.launchContext || {};
@@ -622,7 +669,8 @@ export function formatDeploymentReadyAlert(deploymentAttempt) {
   msg += `Phase:      ${context.narrativePhase || "forming"}\n`;
   msg += `Swarm:      ${Number(context.swarmPressure || 0)}/100\n`;
   msg += `Artifact:   ${payload.metadata?.sourceArtifactType || "symbolic_artifact"}\n`;
-  msg += `Image:      ${payload.metadata?.imageUpload?.status || "placeholder"}\n`;
+  msg += `Image:      ${payload.metadata?.imageUpload?.validationStatus || "image_needed"}\n`;
+  msg += `Metadata:   ${payload.metadataState || "draft"}\n`;
   msg += `Valid:      ${validation.valid ? "yes" : "no"}`;
   msg += `</code>\n\n`;
   if (validation.errors?.length) {

@@ -16,6 +16,7 @@ const narrativeMemory = new NarrativeMemoryService();
 let warnedMissingNarrativeTable = false;
 let warnedMissingShadowLaunchTable = false;
 let warnedMissingDeploymentAttemptsTable = false;
+let warnedMissingLaunchAssetsTable = false;
 
 /**
  * Initialize Supabase client
@@ -510,6 +511,37 @@ export async function saveDeploymentAttempt(attempt) {
   }
 }
 
+export async function saveLaunchAsset(asset) {
+  if (!supabase || !asset?.launchId) return false;
+
+  const row = {
+    launch_id: String(asset.launchId).slice(0, 180),
+    cluster_id: String(asset.clusterId || "").slice(0, 160),
+    ticker: String(asset.ticker || "").slice(0, 16),
+    asset_type: String(asset.assetType || "launch_image").slice(0, 40),
+    prompt: String(asset.prompt || "").slice(0, 2000),
+    image_url: String(asset.imageUrl || "").slice(0, 1000),
+    local_path: String(asset.localPath || "").slice(0, 1000),
+    quality_score: intValue(asset.qualityScore),
+    validation_status: String(asset.validationStatus || "draft").slice(0, 40),
+    created_at: new Date().toISOString(),
+  };
+
+  try {
+    const { error } = await supabase.from("launch_assets").insert(row);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    if (isMissingTableError(err)) {
+      warnMissingLaunchAssetsTable();
+      return false;
+    }
+    console.error("❌ Failed to save launch asset:", err.message);
+    console.error("   Rejected launch asset:", JSON.stringify(getFieldDiagnostics(row)));
+    return false;
+  }
+}
+
 async function saveDeploymentAttemptFallback(attempt) {
   try {
     const { error } = await supabase.from("trend_snapshots").insert({
@@ -678,6 +710,12 @@ function warnMissingDeploymentAttemptsTable() {
   if (warnedMissingDeploymentAttemptsTable) return;
   warnedMissingDeploymentAttemptsTable = true;
   console.warn("⚠️  deployment_attempts table missing; using trend_snapshots fallback until Supabase migration is applied.");
+}
+
+function warnMissingLaunchAssetsTable() {
+  if (warnedMissingLaunchAssetsTable) return;
+  warnedMissingLaunchAssetsTable = true;
+  console.warn("⚠️  launch_assets table missing; image asset persistence skipped until Supabase migration is applied.");
 }
 
 function getFieldDiagnostics(row) {

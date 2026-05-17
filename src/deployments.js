@@ -1,6 +1,6 @@
 import { preparePumpPortalDeployment } from "./launchers/pumpPortalProvider.js";
-import { saveDeploymentAttempt } from "./db.js";
-import { sendDeploymentReadyAlert } from "./telegram.js";
+import { saveDeploymentAttempt, saveLaunchAsset } from "./db.js";
+import { sendDeploymentReadyAlert, sendMetadataReadyAlert } from "./telegram.js";
 
 export async function prepareAndPersistDeploymentAttempt(shadowLaunch, {
   existingTickers = [],
@@ -11,8 +11,13 @@ export async function prepareAndPersistDeploymentAttempt(shadowLaunch, {
   logDeploymentAttempt(deploymentAttempt);
   const saved = await saveDeploymentAttempt(deploymentAttempt);
   if (saved) console.log(`   💾 Deployment attempt saved: ${deploymentAttempt.attemptId}`);
+  if (deploymentAttempt.payload?.metadata?.imageUpload) {
+    const assetSaved = await saveLaunchAsset(deploymentAttempt.payload.metadata.imageUpload);
+    if (assetSaved) console.log(`   🖼️  Launch asset saved: ${deploymentAttempt.payload.metadata.imageUpload.validationStatus}`);
+  }
 
   if (sendTelegram && deploymentAttempt.validation.valid) {
+    await sendMetadataReadyAlert(deploymentAttempt);
     await sendDeploymentReadyAlert(deploymentAttempt);
   }
 

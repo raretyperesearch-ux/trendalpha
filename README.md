@@ -170,6 +170,16 @@ Deployment validation checks ticker length and format, metadata completeness, du
 
 Real launches remain disabled. OINK does not use funded wallets, private keys, signatures, transaction submission, or PumpPortal broadcast calls.
 
+## Metadata + Image Pipeline
+
+OINK does not treat images as decoration. Launch images are part of memetic identity formation: the image has to preserve the artifact, read at thumbnail size, survive screenshots, and invite remix.
+
+The metadata pipeline turns OINK identity output into PumpPortal-ready fields: `name`, `symbol`, `description`, `image`, `twitter`, `telegram`, `website`, `narrativeSummary`, `sourceBacklink`, `identityArchetype`, and `sloganFragments`.
+
+The image pipeline supports placeholder mode, local generated asset paths, remote HTTPS image URLs, and a future AI-image hook. It scores silhouette clarity, meme readability, screenshot survivability, remixability, narrative alignment, emotional texture, and thumbnail strength.
+
+Placeholder and unresolved AI-hook images can remain in draft review, but they cannot become metadata-ready. Generic, corporate, overly realistic, unrelated, or weak-silhouette prompts are rejected before deployment readiness.
+
 When live providers are unavailable, `MEMORY_ONLY_LAUNCH_TEST_MODE=true` lets OINK load recent high-quality `narrative_cluster_snapshots`, generate dry-run PumpPortal payloads, persist them to `shadow_launches`, and send `OINK PREPARE LAUNCH` Telegram alerts. It only uses stored narrative memory and never broadcasts a launch.
 
 Use:
@@ -275,6 +285,8 @@ npm run scan
 npm run scan:dry
 npm run test-launch
 npm run test-launch-created
+npm run test-metadata
+npm run test-image-pipeline
 npm run test-pumpportal
 npm run test-telegram-alert
 npm run test-shadow-launches

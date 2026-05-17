@@ -42,7 +42,12 @@ const cluster = {
 };
 
 const shadowLaunch = prepareDryRunPumpPortalLaunch(cluster);
-const deploymentAttempt = preparePumpPortalDeployment(shadowLaunch);
+const deploymentAttempt = preparePumpPortalDeployment(shadowLaunch, {
+  imageOptions: {
+    mode: "remote_url",
+    remoteUrl: "https://example.com/banana-dog.png",
+  },
+});
 
 console.log("PumpPortal dry-wire deployment test");
 console.log(`Ticker: $${deploymentAttempt.ticker}`);
@@ -50,7 +55,7 @@ console.log(`Mode: ${deploymentAttempt.mode}`);
 console.log(`State: ${deploymentAttempt.deploymentState}`);
 console.log(`Valid: ${deploymentAttempt.validation.valid ? "yes" : "no"}`);
 console.log(`Broadcast: ${deploymentAttempt.simulation.broadcast ? "yes" : "no"}`);
-console.log(`Image placeholder: ${deploymentAttempt.payload.metadata.imageUpload.status}`);
+console.log(`Image status: ${deploymentAttempt.payload.metadata.imageUpload.validationStatus}`);
 console.log(`Transaction: ${deploymentAttempt.payload.transaction.note}`);
 if (deploymentAttempt.validation.errors.length > 0) {
   console.log(`Errors: ${deploymentAttempt.validation.errors.join(", ")}`);

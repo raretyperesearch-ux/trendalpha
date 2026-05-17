@@ -1,4 +1,5 @@
 import { config } from "../config.js";
+import { prepareLaunchMetadata } from "../metadataPipeline.js";
 
 const DEPLOYMENT_STATES = {
   PREPARING: "preparing",
@@ -11,9 +12,10 @@ const DEPLOYMENT_STATES = {
 };
 
 export class PumpPortalProvider {
-  constructor({ existingTickers = [], enableRealLaunches = config.launch.enableRealLaunches } = {}) {
+  constructor({ existingTickers = [], enableRealLaunches = config.launch.enableRealLaunches, imageOptions = {} } = {}) {
     this.existingTickers = new Set(existingTickers.map(normalizeTicker).filter(Boolean));
     this.enableRealLaunches = Boolean(enableRealLaunches);
+    this.imageOptions = imageOptions;
     this.connected = true;
   }
 
@@ -21,8 +23,24 @@ export class PumpPortalProvider {
     const auditLog = [];
     auditLog.push(audit("payload_generation", "started", "Building PumpPortal deployment request shape"));
 
-    const payload = this.buildDeploymentPayload(shadowLaunch);
-    auditLog.push(audit("image_artifact_preparation", "ready", payload.metadata.imagePrompt ? "Image prompt prepared; upload placeholder reserved" : "Image prompt missing"));
+    let payload = this.buildDeploymentPayload(shadowLaunch);
+    const metadataPipeline = prepareLaunchMetadata(
+      { shadowLaunch, deploymentPayload: payload },
+      { imageOptions: this.imageOptions }
+    );
+    payload = {
+      ...payload,
+      metadata: {
+        ...payload.metadata,
+        ...metadataPipeline.metadata,
+        imagePrompt: payload.metadata.imagePrompt,
+        imageUpload: metadataPipeline.imageAsset,
+      },
+      metadataState: metadataPipeline.state,
+      metadataValidation: metadataPipeline.validation,
+    };
+    auditLog.push(audit("metadata_pipeline", metadataPipeline.state, metadataPipeline.validation.valid ? "Metadata is ready" : metadataPipeline.validation.errors.join("; ")));
+    auditLog.push(audit("image_artifact_preparation", metadataPipeline.imageAsset.validationStatus, payload.metadata.imagePrompt ? "Image asset pipeline completed" : "Image prompt missing"));
 
     auditLog.push(audit("validation", "started", "Validating deployment payload"));
     const validation = this.validateDeploymentPayload(payload);
@@ -125,6 +143,8 @@ export class PumpPortalProvider {
     if (!payload.token.name || payload.token.name.length < 3) errors.push("token_name_missing");
     if (!payload.token.description || payload.token.description.length < 24) errors.push("description_incomplete");
     if (!payload.metadata.imagePrompt) errors.push("image_prompt_missing");
+    if (payload.metadataValidation && !payload.metadataValidation.valid) errors.push("metadata_validation_failed");
+    if (payload.metadata?.imageUpload?.validation && !payload.metadata.imageUpload.validation.valid) errors.push("image_asset_validation_failed");
     if (readiness < config.launch.deploymentMinReadiness) errors.push("launch_readiness_below_threshold");
     if (swarmPressure > config.launch.deploymentMaxSwarmPressure) errors.push("swarm_pressure_above_threshold");
     if (payload.metadata.artifactStrength < 45) warnings.push("artifact_strength_low");
@@ -137,6 +157,7 @@ export class PumpPortalProvider {
       checks: {
         tickerLength: symbol.length,
         metadataComplete: Boolean(payload.token.name && payload.token.description && payload.metadata.imagePrompt),
+        metadataState: payload.metadataState,
         duplicateTicker: this.existingTickers.has(symbol),
         launchReadiness: readiness,
         swarmPressure,

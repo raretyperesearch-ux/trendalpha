@@ -55,6 +55,14 @@ export const config = {
   pumpPortal: {
     apiBaseUrl: optional("PUMPPORTAL_API_BASE_URL", "https://pumpportal.fun/api"),
   },
+  metadata: {
+    twitter: optional("OINK_TWITTER_URL", "https://x.com/oink"),
+    telegram: optional("OINK_TELEGRAM_URL", "https://t.me/oink"),
+    website: optional("OINK_WEBSITE_URL", "https://oink.bot"),
+    imageMode: optional("IMAGE_ASSET_MODE", "placeholder"),
+    imageLocalPath: optional("IMAGE_ASSET_LOCAL_PATH", ""),
+    imageRemoteUrl: optional("IMAGE_ASSET_REMOTE_URL", ""),
+  },
   providers: {
     tiktok: optionalBool("ENABLE_TIKTOK_PROVIDER", true),
     x: optionalBool("ENABLE_X_PROVIDER", true),
