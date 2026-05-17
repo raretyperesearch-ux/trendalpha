@@ -755,6 +755,24 @@ export function formatSaturationWarningAlert({ title = "OINK SATURATION WARNING"
   return constrainTelegramMessage(msg);
 }
 
+export function formatTransactionSimulationAlert(deploymentAttempt) {
+  const sim = deploymentAttempt.simulationResult || deploymentAttempt.payload?.transactionSimulation || {};
+  let msg = `🐷 <b>OINK TX SIMULATION</b>\n\n`;
+  msg += `Ticker:\n<b>$${escapeHtml(deploymentAttempt.ticker || sim.ticker || "OINK")}</b>\n\n`;
+  msg += `Metadata:\n<b>${deploymentAttempt.payload?.metadataState === "metadata_ready" ? "READY" : "REVIEW"}</b>\n\n`;
+  msg += `Simulation:\n<b>${escapeHtml(String(sim.status || "unknown").toUpperCase())}</b>\n\n`;
+  msg += `Estimated Confirmation:\n<b>${Number((sim.latencies?.confirmationMs || 0) / 1000).toFixed(1)}s</b>\n\n`;
+  msg += `Failure Risk:\n<b>${escapeHtml(sim.failureRisk || "LOW")}</b>\n\n`;
+  msg += `Mode:\n<b>DRY-WIRE</b>\n\n`;
+  msg += `<code>`;
+  msg += `Metadata: ${Number(sim.latencies?.metadataPrepMs || 0)}ms\n`;
+  msg += `Upload:   ${Number(sim.latencies?.uploadMs || 0)}ms\n`;
+  msg += `Tx Prep:  ${Number(sim.latencies?.txPrepMs || 0)}ms\n`;
+  msg += `Failure:  ${sim.failureClass || "none"}`;
+  msg += `</code>`;
+  return constrainTelegramMessage(msg);
+}
+
 function formatCapabilityIcon(value) {
   if (value === true) return "✅";
   if (value === false || value == null) return "❌";

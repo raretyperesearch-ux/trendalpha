@@ -167,6 +167,8 @@ CREATE TABLE IF NOT EXISTS deployment_attempts (
   idempotency_key TEXT,
   state_timeline JSONB DEFAULT '[]',
   failure_class TEXT,
+  simulation_result JSONB DEFAULT '{}',
+  observation_state TEXT,
   mode TEXT DEFAULT 'DRY_WIRE',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -181,6 +183,8 @@ ALTER TABLE deployment_attempts
   ADD COLUMN IF NOT EXISTS idempotency_key TEXT,
   ADD COLUMN IF NOT EXISTS state_timeline JSONB DEFAULT '[]',
   ADD COLUMN IF NOT EXISTS failure_class TEXT,
+  ADD COLUMN IF NOT EXISTS simulation_result JSONB DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS observation_state TEXT,
   ADD COLUMN IF NOT EXISTS mode TEXT DEFAULT 'DRY_WIRE',
   ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 

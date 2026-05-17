@@ -496,6 +496,8 @@ export async function saveDeploymentAttempt(attempt) {
     idempotency_key: String(attempt.idempotencyKey || "").slice(0, 180),
     state_timeline: attempt.stateTimeline || [],
     failure_class: String(attempt.failure?.failureClass || attempt.failureClass || "").slice(0, 80),
+    simulation_result: attempt.simulationResult || attempt.payload?.transactionSimulation || {},
+    observation_state: String(attempt.observationState || "").slice(0, 80),
     created_at: new Date().toISOString(),
   };
 

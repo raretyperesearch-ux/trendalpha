@@ -304,6 +304,8 @@ The dashboard is read-only. It shows recent attention candidates and the $OINK b
 
 OINK Mission Control is a read-only HTML dashboard for reviewing active clusters, launch readiness, shadow launches, deployment states, identity/image previews, ticker quality, saturation warnings, provider health, deployment queues, audit timelines, and failure diagnostics before wallets or broadcasts exist.
 
+Mission Control also surfaces the human observation queue for dry-run launches. Reviewers can inspect which candidates were queued, approved, rejected, expired, and whether they would launch again after calibration.
+
 Run:
 
 ```bash
@@ -311,6 +313,21 @@ npm run mission-control
 ```
 
 It writes `mission-control.html` locally. The page does not execute launches, connect wallets, submit transactions, or broadcast anything.
+
+## Dry-Wire Readiness
+
+OINK now simulates the full launch path before real keys or broadcasts exist. The transaction simulation engine exercises metadata upload, deployment payload construction, transaction assembly, signer flow, confirmation polling, failure handling, and replay logs in dry-wire mode.
+
+Wallet isolation is modeled with strict roles:
+
+- `deploy_wallet`
+- `treasury_wallet`
+- `fee_wallet`
+- `monitoring_wallet`
+
+These are capability boundaries only. OINK uses env-based key stubs for architecture tests, keeps `SIGNER_DISABLED=true` by default, and does not load funded private keys.
+
+The observation queue keeps dry-run launches reviewable before autonomy. Candidates can be queued, approved, rejected, expired, voted on for launch quality, and marked with `would_launch_again` calibration data.
 
 ## Local Commands
 
@@ -329,6 +346,9 @@ npm run test-live-metadata-rules
 npm run test-source-media
 npm run test-telegram-alert
 npm run test-shadow-launches
+npm run test-transaction-sim
+npm run test-wallet-architecture
+npm run test-observation-queue
 npm run test-x
 npm run dashboard
 npm run mission-control

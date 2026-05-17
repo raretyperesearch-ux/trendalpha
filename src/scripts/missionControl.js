@@ -43,7 +43,7 @@ async function loadMissionControlData() {
         { launch_id: "dry-cluster-banana-BANANA", ticker: "BANANA", title: "Banana Dog", launch_readiness: 86, narrative_phase: "forming", swarm_pressure: 18 },
       ],
       deployments: [
-        { attempt_id: "deploy-cluster-banana", ticker: "BANANA", deployment_state: "deployment_prepared", failure_class: "", mode: "DRY_WIRE", state_timeline: [] },
+        { attempt_id: "deploy-cluster-banana", ticker: "BANANA", deployment_state: "deployment_prepared", failure_class: "", mode: "DRY_WIRE", state_timeline: [], observation_state: "queued_for_review", simulation_result: { status: "success", failureRisk: "LOW" } },
       ],
       errors: [err.message],
     };
@@ -90,6 +90,7 @@ function renderMissionControl({ source, clusters, shadowLaunches, deployments, e
       <div class="panel"><div class="muted">Active Clusters</div><div class="metric">${clusters.length}</div></div>
       <div class="panel"><div class="muted">Shadow Launches</div><div class="metric">${shadowLaunches.length}</div></div>
       <div class="panel"><div class="muted">Deployment Queue</div><div class="metric">${deployments.length}</div></div>
+      <div class="panel"><div class="muted">Observation Queue</div><div class="metric">${deployments.filter((d) => (d.observation_state || "queued_for_review") === "queued_for_review").length}</div></div>
       <div class="panel"><div class="muted">Saturation / Failure Warnings</div><div class="metric ${activeWarnings ? "warn" : "ok"}">${activeWarnings}</div></div>
     </section>
     <section class="panel">
@@ -121,6 +122,7 @@ function renderMissionControl({ source, clusters, shadowLaunches, deployments, e
       <div class="panel"><h2>Dry-Run Payload Inspector</h2><pre>${escapeHtml(JSON.stringify(deployments[0]?.payload || {}, null, 2)).slice(0, 2200)}</pre></div>
       <div class="panel"><h2>Failure Diagnostics</h2>${table(["Attempt", "State", "Failure"], deployments.map((d) => [d.attempt_id, d.deployment_state, d.failure_class || "none"]))}</div>
       <div class="panel"><h2>Provider Health</h2><p class="ok">PumpPortal adapter: DRY-WIRE</p><p class="muted">Broadcast: disabled</p><p class="muted">Wallets: disabled</p></div>
+      <div class="panel"><h2>Observation Review Queue</h2>${table(["Ticker", "Review State", "Simulation", "Would Launch Again"], deployments.map((d) => [d.ticker, d.observation_state || "queued_for_review", d.simulation_result?.status || "pending", "unvoted"]))}</div>
       <div class="panel"><h2>Telegram Deep Links</h2><p><a href="https://t.me/" style="color:#9ee7ff">Open Telegram</a></p><p class="muted">Alerts remain Telegram-first; no actions are executed from this dashboard.</p></div>
     </section>
   </main>

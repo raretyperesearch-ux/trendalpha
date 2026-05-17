@@ -3,6 +3,9 @@ import { saveDeploymentAttempt, saveLaunchAsset } from "./db.js";
 import { sendDeploymentReadyAlert, sendMetadataReadyAlert } from "./telegram.js";
 import { buildIdempotencyKey, createDeploymentStateMachine, classifyDeploymentFailure } from "./deploymentStateMachine.js";
 import { evaluateLaunchSaturationSafety } from "./saturationSafety.js";
+import { simulateTransaction } from "./transactionSimulation.js";
+import { createSignerIsolationManager } from "./walletIsolation.js";
+import { createLaunchObservationQueue } from "./observationQueue.js";
 
 export async function prepareAndPersistDeploymentAttempt(shadowLaunch, {
   existingTickers = [],
@@ -56,6 +59,20 @@ export async function prepareAndPersistDeploymentAttempt(shadowLaunch, {
   if (machine.state !== "failed" && deploymentAttempt.validation.valid) machine.transition("validation_passed", { reason: "payload_validation_passed" });
   else if (machine.state !== "failed") machine.fail("validation_failure", "Payload validation failed", { errors: deploymentAttempt.validation.errors });
   if (machine.state !== "failed") machine.transition("deployment_prepared", { reason: "dry_wire_deployment_prepared" });
+  const signer = createSignerIsolationManager();
+  const signature = signer.simulateSign({ role: "deploy_wallet", payload: deploymentAttempt.payload });
+  deploymentAttempt.walletDiagnostics = signer.getDiagnostics();
+  deploymentAttempt.signatureSimulation = signature;
+  deploymentAttempt.simulationResult = simulateTransaction(deploymentAttempt, { scenario: "success" });
+  deploymentAttempt.payload.transactionSimulation = deploymentAttempt.simulationResult;
+  const queue = createLaunchObservationQueue();
+  const observation = queue.enqueue(shadowLaunch, deploymentAttempt);
+  deploymentAttempt.observationState = observation.state;
+  deploymentAttempt.payload.observation = {
+    observationId: observation.observationId,
+    state: observation.state,
+    calibration: observation.calibration,
+  };
   deploymentAttempt.deploymentState = machine.state;
   deploymentAttempt.stateTimeline = machine.timeline;
   deploymentAttempt.failure = machine.failure;

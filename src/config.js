@@ -59,6 +59,9 @@ export const config = {
   pumpPortal: {
     apiBaseUrl: optional("PUMPPORTAL_API_BASE_URL", "https://pumpportal.fun/api"),
   },
+  wallets: {
+    signerDisabled: optionalBool("SIGNER_DISABLED", true),
+  },
   metadata: {
     twitter: optional("OINK_TWITTER_URL", "https://x.com/oink"),
     telegram: optional("OINK_TELEGRAM_URL", "https://t.me/oink"),
