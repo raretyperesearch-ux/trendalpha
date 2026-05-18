@@ -6,6 +6,7 @@ import { evaluateLaunchSaturationSafety } from "./saturationSafety.js";
 import { simulateTransaction } from "./transactionSimulation.js";
 import { createSignerIsolationManager } from "./walletIsolation.js";
 import { createLaunchObservationQueue } from "./observationQueue.js";
+import { config } from "./config.js";
 
 export async function prepareAndPersistDeploymentAttempt(shadowLaunch, {
   existingTickers = [],
@@ -113,9 +114,7 @@ function evaluateFinalLaunchGate(deploymentAttempt) {
   const payload = deploymentAttempt.payload || {};
   const identity = payload.identity?.selected || {};
   const asset = payload.metadata?.imageUpload || {};
-  const walletConfigValid = (deploymentAttempt.walletDiagnostics || []).every((item) =>
-    item.publicKeyConfigured && item.publicKeyValid && item.warnings.length === 0
-  );
+  const walletConfigValid = Boolean(config.wallets.roleConfigValid);
   const liveSignerReady = (deploymentAttempt.walletDiagnostics || []).some((item) => item.role === "deploy_wallet" && item.liveSignerReady);
   const blocks = [];
   if (Number(identity.tickerQualityScore || 0) < 75 || Number(identity.namingQualityScore || 0) < 75 || Number(identity.identityCohesionScore || 0) < 75) {

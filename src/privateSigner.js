@@ -151,7 +151,7 @@ function decodeBase58(value) {
 }
 
 function walletRoleConfigIsValid() {
-  return config.wallets.publicKeyDiagnostics.every((item) => item.configured && item.valid && item.warnings.length === 0);
+  return Boolean(config.wallets.roleConfigValid);
 }
 
 function signerReadyReason({ parsed, publicKeyMatch, signerEnabled, roleConfigValid }) {

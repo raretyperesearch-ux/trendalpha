@@ -92,7 +92,12 @@ function walletPublicKeyDiagnostics(wallets) {
   return diagnostics;
 }
 
-function validateWalletPublicConfig({ enableRealLaunches, wallets }) {
+function walletRoleConfigIsValidV1(diagnostics) {
+  const deploy = diagnostics.find((item) => item.role === "deploy_wallet");
+  return Boolean(deploy?.configured && deploy.valid);
+}
+
+function validateWalletPublicConfig({ enableRealLaunches, signerDisabled, deployPrivateKeyPresent, wallets }) {
   const diagnostics = walletPublicKeyDiagnostics(wallets);
   const warnings = diagnostics.flatMap((item) => item.warnings.map((warning) => `${item.role}: ${warning}`));
 
@@ -102,9 +107,11 @@ function validateWalletPublicConfig({ enableRealLaunches, wallets }) {
 
   if (!enableRealLaunches) return diagnostics;
 
-  const failures = diagnostics
-    .filter((item) => !item.configured || !item.valid || item.warnings.some((warning) => warning.startsWith("wallet_reused")))
-    .map((item) => `${item.role}:${!item.configured ? "missing" : item.warnings.join("|") || "invalid"}`);
+  const deploy = diagnostics.find((item) => item.role === "deploy_wallet");
+  const failures = [];
+  if (!deploy?.configured) failures.push("deploy_wallet:missing");
+  else if (!deploy.valid) failures.push("deploy_wallet:invalid");
+  if (!signerDisabled && !deployPrivateKeyPresent) failures.push("deploy_wallet_private_key:missing");
 
   if (failures.length) {
     throw new Error(`Wallet configuration invalid for ENABLE_REAL_LAUNCHES=true: ${failures.join(", ")}`);
@@ -114,13 +121,20 @@ function validateWalletPublicConfig({ enableRealLaunches, wallets }) {
 }
 
 const enableRealLaunches = optionalBool("ENABLE_REAL_LAUNCHES", false);
+const signerDisabled = optionalBool("SIGNER_DISABLED", true);
+const deployPrivateKeyPresent = Boolean(optional("DEPLOY_WALLET_PRIVATE_KEY", "").trim());
 const walletPublicKeys = {
   deploy_wallet: optional("DEPLOY_WALLET_PUBLIC_KEY", "").trim(),
   treasury_wallet: optional("TREASURY_WALLET_PUBLIC_KEY", "").trim(),
   fee_wallet: optional("FEE_WALLET_PUBLIC_KEY", "").trim(),
   monitoring_wallet: optional("MONITORING_WALLET_PUBLIC_KEY", "").trim(),
 };
-const walletDiagnostics = validateWalletPublicConfig({ enableRealLaunches, wallets: walletPublicKeys });
+const walletDiagnostics = validateWalletPublicConfig({
+  enableRealLaunches,
+  signerDisabled,
+  deployPrivateKeyPresent,
+  wallets: walletPublicKeys,
+});
 
 export const config = {
   telegram: {
@@ -181,13 +195,14 @@ export const config = {
     confirmationPollMs: optionalInt("SOLANA_CONFIRMATION_POLL_MS", "2500"),
   },
   wallets: {
-    signerDisabled: optionalBool("SIGNER_DISABLED", true),
-    deployPrivateKeyPresent: Boolean(optional("DEPLOY_WALLET_PRIVATE_KEY", "").trim()),
+    signerDisabled,
+    deployPrivateKeyPresent,
     deployPublicKey: walletPublicKeys.deploy_wallet,
     treasuryPublicKey: walletPublicKeys.treasury_wallet,
     feePublicKey: walletPublicKeys.fee_wallet,
     monitoringPublicKey: walletPublicKeys.monitoring_wallet,
     publicKeyDiagnostics: walletDiagnostics,
+    roleConfigValid: walletRoleConfigIsValidV1(walletDiagnostics),
   },
   metadata: {
     twitter: optional("OINK_TWITTER_URL", "https://x.com/oink"),

@@ -23,6 +23,7 @@
     "test-transaction-sim": "node src/scripts/testTransactionSim.js",
     "test-wallet-architecture": "node src/scripts/testWalletArchitecture.js",
     "test-wallet-config": "node src/scripts/testWalletConfig.js",
+    "test-wallet-v1-live-validation": "node src/scripts/testWalletV1LiveValidation.js",
     "test-private-signer-safety": "node src/scripts/testPrivateSignerSafety.js",
     "test-observation-queue": "node src/scripts/testObservationQueue.js",
     "test-live-metadata-rules": "node src/scripts/testLiveMetadataRules.js",

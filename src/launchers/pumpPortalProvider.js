@@ -217,7 +217,7 @@ export class PumpPortalProvider extends LaunchAdapter {
     const metadataReady = payload.metadataState === "metadata_ready" && payload.metadataValidation?.valid !== false;
     const asset = payload.metadata?.imageUpload || {};
     const assetHosted = hosted || Boolean(asset.uploadedImageUrl || asset.metadataUrl || payload.metadata?.hostedMetadataUrl);
-    const walletConfigValid = config.wallets.publicKeyDiagnostics.every((item) => item.configured && item.valid && item.warnings.length === 0);
+    const walletConfigValid = Boolean(config.wallets.roleConfigValid);
     const liveSignerReady = signerDiagnostics.some((item) => item.role === "deploy_wallet" && item.liveSignerReady);
     const signerSafe = config.wallets.signerDisabled || liveSignerReady;
     const saturationPassed = Number(payload.launchContext?.swarmPressure || 0) <= config.launch.deploymentMaxSwarmPressure;

@@ -40,19 +40,19 @@ const liveDuplicate = spawnSync(process.execPath, ["--input-type=module", "-e", 
     ENABLE_REAL_LAUNCHES: "true",
     DEPLOY_WALLET_PUBLIC_KEY: deployKey,
     TREASURY_WALLET_PUBLIC_KEY: deployKey,
-    FEE_WALLET_PUBLIC_KEY: feeKey,
-    MONITORING_WALLET_PUBLIC_KEY: monitoringKey,
+    FEE_WALLET_PUBLIC_KEY: "",
+    MONITORING_WALLET_PUBLIC_KEY: "",
   },
   encoding: "utf8",
 });
 
-console.log(`Live duplicate hard fail: ${liveDuplicate.status === 0 ? "no" : "yes"}`);
+console.log(`Live V1 duplicate allowed: ${liveDuplicate.status === 0 ? "yes" : "no"}`);
 
 if (!isValidSolanaPublicKey(config.wallets.deployPublicKey)) process.exitCode = 1;
 if (!config.wallets.signerDisabled) process.exitCode = 1;
 if (duplicateWarnings.length < 2) process.exitCode = 1;
 if (liveReady) process.exitCode = 1;
-if (liveDuplicate.status === 0) process.exitCode = 1;
+if (liveDuplicate.status !== 0) process.exitCode = 1;
 
 function base58Encode(bytes) {
   const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
