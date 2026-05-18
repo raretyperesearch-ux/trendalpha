@@ -579,6 +579,55 @@ export async function saveLaunchAsset(asset) {
   }
 }
 
+export async function saveDeployedTokenMint(record = {}) {
+  if (!supabase || !record.mint) return false;
+  const row = {
+    mint: String(record.mint).slice(0, 80),
+    ticker: String(record.ticker || "").slice(0, 16),
+    token_name: String(record.tokenName || record.name || "").slice(0, 80),
+    launch_timestamp: record.launchTimestamp || new Date().toISOString(),
+    deploy_wallet: String(record.deployWallet || "").slice(0, 80),
+    tx_signature: String(record.txSignature || "").slice(0, 120),
+    creator_fee_status: String(record.creatorFeeStatus || "pending").slice(0, 40),
+    source_cluster_id: String(record.sourceClusterId || record.clusterId || "").slice(0, 160),
+    source_platform: String(record.sourcePlatform || "").slice(0, 80),
+    source_url: String(record.sourceUrl || record.sourcePostUrl || "").slice(0, 500),
+    launch_score: Math.round(Number(record.launchScore || 0)),
+  };
+  try {
+    const { error } = await supabase.from("deployed_token_mints").upsert(row, { onConflict: "mint" });
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error("❌ Failed to save deployed mint:", err.message);
+    return false;
+  }
+}
+
+export async function saveCreatorFeeClaim(claim = {}) {
+  if (!supabase) return false;
+  const row = {
+    mint: String(claim.mint || "").slice(0, 80),
+    pool: String(claim.pool || "pump").slice(0, 40),
+    status: String(claim.status || "pending").slice(0, 40),
+    estimated_creator_fees_sol: Number(claim.estimatedCreatorFeesSol || 0),
+    claimed_sol: Number(claim.claimedSol || 0),
+    tx_signature: String(claim.txSignature || "").slice(0, 120),
+    failure_class: String(claim.failureClass || "").slice(0, 80),
+    confirmation_latency_ms: Math.round(Number(claim.confirmationLatencyMs || 0)),
+    recovery_path: String(claim.recoveryPath || "").slice(0, 160),
+    created_at: claim.createdAt || new Date().toISOString(),
+  };
+  try {
+    const { error } = await supabase.from("creator_fee_claims").insert(row);
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error("❌ Failed to save creator fee claim:", err.message);
+    return false;
+  }
+}
+
 async function saveDeploymentAttemptFallback(attempt) {
   try {
     const { error } = await supabase.from("trend_snapshots").insert({

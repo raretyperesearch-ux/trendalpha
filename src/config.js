@@ -165,6 +165,11 @@ export const config = {
     priorityFee: Number(optional("PUMPPORTAL_PRIORITY_FEE_SOL", "0.00001")),
     pool: optional("PUMPPORTAL_POOL", "pump"),
   },
+  creatorFees: {
+    sweepIntervalHours: optionalInt("CREATOR_FEE_SWEEP_INTERVAL_HOURS", "24"),
+    priorityFee: Number(optional("CREATOR_FEE_PRIORITY_FEE_SOL", optional("PUMPPORTAL_PRIORITY_FEE_SOL", "0.00001"))),
+    pools: optionalList("CREATOR_FEE_POOLS").length ? optionalList("CREATOR_FEE_POOLS") : ["pump", "meteora-dbc"],
+  },
   pinata: {
     jwtPresent: Boolean(optional("PINATA_JWT", "").trim()),
     uploadUrl: optional("PINATA_UPLOAD_URL", "https://uploads.pinata.cloud/v3/files"),

@@ -224,6 +224,50 @@ CREATE INDEX IF NOT EXISTS idx_deployment_attempts_state
 CREATE INDEX IF NOT EXISTS idx_deployment_attempts_idempotency
   ON deployment_attempts(idempotency_key);
 
+-- Deployed token mint registry — no private keys
+CREATE TABLE IF NOT EXISTS deployed_token_mints (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  mint TEXT NOT NULL UNIQUE,
+  ticker TEXT,
+  token_name TEXT,
+  launch_timestamp TIMESTAMPTZ,
+  deploy_wallet TEXT,
+  tx_signature TEXT,
+  creator_fee_status TEXT DEFAULT 'pending',
+  source_cluster_id TEXT,
+  source_platform TEXT,
+  source_url TEXT,
+  launch_score INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_deployed_token_mints_status
+  ON deployed_token_mints(creator_fee_status);
+
+CREATE INDEX IF NOT EXISTS idx_deployed_token_mints_launch_timestamp
+  ON deployed_token_mints(launch_timestamp DESC);
+
+-- Creator fee claims — PumpPortal Local Transaction API audit
+CREATE TABLE IF NOT EXISTS creator_fee_claims (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  mint TEXT,
+  pool TEXT NOT NULL DEFAULT 'pump',
+  status TEXT NOT NULL DEFAULT 'pending',
+  estimated_creator_fees_sol NUMERIC DEFAULT 0,
+  claimed_sol NUMERIC DEFAULT 0,
+  tx_signature TEXT,
+  failure_class TEXT,
+  confirmation_latency_ms INTEGER DEFAULT 0,
+  recovery_path TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_creator_fee_claims_mint
+  ON creator_fee_claims(mint);
+
+CREATE INDEX IF NOT EXISTS idx_creator_fee_claims_status
+  ON creator_fee_claims(status);
+
 -- Launch image/metadata assets — dry-wire asset preparation only
 CREATE TABLE IF NOT EXISTS launch_assets (
   id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

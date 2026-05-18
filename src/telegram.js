@@ -801,6 +801,33 @@ export function formatTransactionSimulationAlert(deploymentAttempt) {
   return constrainTelegramMessage(msg);
 }
 
+export function formatTreasuryUpdateAlert({ diagnostics = {}, treasuryBalanceSol = diagnostics.cumulativeTreasuryGrowth || 0 } = {}) {
+  const topLaunch = diagnostics.topLaunch || {};
+  let msg = `🐷 <b>OINK TREASURY UPDATE</b>\n\n`;
+  msg += `Creator Fees Claimed:\n<b>${Number(diagnostics.claimedFees || 0).toFixed(2)} SOL</b>\n\n`;
+  msg += `Top Launch:\n<b>$${escapeHtml(topLaunch.ticker || "N/A")}</b>\n\n`;
+  msg += `Cumulative Treasury:\n<b>${Number(treasuryBalanceSol || 0).toFixed(2)} SOL</b>\n\n`;
+  msg += `Future Buyback Capacity:\n<b>${Number(treasuryBalanceSol || 0) > 0 ? "ACTIVE" : "PENDING"}</b>\n\n`;
+  msg += `<code>`;
+  msg += `Estimated: ${Number(diagnostics.estimatedCreatorFees || 0).toFixed(4)} SOL\n`;
+  msg += `Pending:   ${Number(diagnostics.pendingClaims || 0)}\n`;
+  msg += `Failed:    ${Number(diagnostics.failedClaims || 0)}`;
+  msg += `</code>\n\n`;
+  msg += `<i>Buyback routing is planned only. No automatic buybacks are active.</i>`;
+  return constrainTelegramMessage(msg);
+}
+
+export async function sendTreasuryUpdateAlert(input) {
+  if (!bot) throw new Error("Bot not initialized — call initBot() first");
+  const message = formatTreasuryUpdateAlert(input);
+  return sendTelegramWithFallback({
+    label: "treasury:update",
+    richHtml: message,
+    compactHtml: message,
+    minimalText: buildMinimalAlertText({ title: "OINK TREASURY UPDATE", name: "creator fees", score: null }),
+  });
+}
+
 function formatCapabilityIcon(value) {
   if (value === true) return "✅";
   if (value === false || value == null) return "❌";

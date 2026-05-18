@@ -180,6 +180,12 @@ OINK includes the official PumpPortal Local Transaction API flow behind hard lau
 
 Defaults remain locked: `ENABLE_REAL_LAUNCHES=false` and `SIGNER_DISABLED=true`. The local flow refuses launch unless signer safety, final launch gate, identity quality, metadata upload, transaction simulation, and saturation safety all pass. It must never log private keys, raw signer secrets, or serialized signed transaction payloads.
 
+## Creator Fee Treasury
+
+OINK can track deployed token mints and prepare PumpPortal `collectCreatorFee` claims through the Local Transaction API. The supported pools are `pump` and `meteora-dbc`; Pump claims can be collected all at once, while Meteora DBC claims include the mint being claimed. Creator fee sweeps stay behind the same real-launch and signer safety gates.
+
+Treasury diagnostics track estimated creator fees, claimed fees, pending claims, failed claims, cumulative treasury growth, top earning launches, and future buyback capacity. Buyback routing is only a planner for now: it creates a queue and allocation plan from OINK's buyback percentages, but it does not execute automatic buybacks.
+
 ## Metadata + Image Pipeline
 
 OINK does not treat images as decoration. Launch images are part of memetic identity formation: the image has to preserve the artifact, read at thumbnail size, survive screenshots, and invite remix.
@@ -360,6 +366,9 @@ npm run test-pumpportal-metadata
 npm run test-pinata-upload
 npm run test-live-launch-gates
 npm run test-launch-confirmation
+npm run test-creator-fees
+npm run test-treasury-sweeps
+npm run test-buyback-routing
 npm run test-live-metadata-rules
 npm run test-source-media
 npm run test-telegram-alert

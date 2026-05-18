@@ -3,7 +3,7 @@ import { Connection, Keypair, VersionedTransaction } from "@solana/web3.js";
 import { config } from "../config.js";
 import { getDeployPrivateSignerDiagnostics, getDeploySecretKeyBytesForSigning } from "../privateSigner.js";
 import { sendLaunchCreatedAlert } from "../telegram.js";
-import { saveDeploymentAttempt } from "../db.js";
+import { saveDeployedTokenMint, saveDeploymentAttempt } from "../db.js";
 
 const PUMP_FUN_BASE = "https://pump.fun";
 
@@ -136,6 +136,21 @@ export class PumpPortalLocalLaunchFlow {
     deploymentAttempt.deploymentState = "confirmed";
 
     if (persist) await saveDeploymentAttempt(deploymentAttempt);
+    if (persist) {
+      await saveDeployedTokenMint({
+        mint: result.mint,
+        ticker: launchedToken.ticker,
+        tokenName: launchedToken.name,
+        launchTimestamp: result.launchTimestamp,
+        deployWallet: config.wallets.deployPublicKey,
+        txSignature: result.txSignature,
+        creatorFeeStatus: "pending",
+        sourceClusterId: result.sourceNarrativeCluster,
+        sourcePlatform: result.sourcePlatform,
+        sourceUrl: result.sourcePostUrl,
+        launchScore: result.launchScore,
+      });
+    }
 
     if (sendTelegram) {
       await sendLaunchCreatedAlert({

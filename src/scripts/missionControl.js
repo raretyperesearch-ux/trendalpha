@@ -20,17 +20,21 @@ async function loadMissionControlData() {
   try {
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) throw new Error("Supabase not configured");
     const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
-    const [clusters, shadow, deployments] = await Promise.all([
+    const [clusters, shadow, deployments, deployedMints, feeClaims] = await Promise.all([
       supabase.from("narrative_cluster_snapshots").select("*").order("timestamp", { ascending: false }).limit(20),
       supabase.from("shadow_launches").select("*").order("created_at", { ascending: false }).limit(20),
       supabase.from("deployment_attempts").select("*").order("created_at", { ascending: false }).limit(20),
+      supabase.from("deployed_token_mints").select("*").order("launch_timestamp", { ascending: false }).limit(20),
+      supabase.from("creator_fee_claims").select("*").order("created_at", { ascending: false }).limit(50),
     ]);
     return {
       source: "supabase",
       clusters: clusters.data || [],
       shadowLaunches: shadow.data || [],
       deployments: deployments.data || [],
-      errors: [clusters.error, shadow.error, deployments.error].filter(Boolean).map((err) => err.message),
+      deployedMints: deployedMints.data || [],
+      feeClaims: feeClaims.data || [],
+      errors: [clusters.error, shadow.error, deployments.error, deployedMints.error, feeClaims.error].filter(Boolean).map((err) => err.message),
     };
   } catch (err) {
     return {
@@ -63,13 +67,22 @@ async function loadMissionControlData() {
       deployments: [
         { attempt_id: "deploy-cluster-banana", ticker: "BANANA", deployment_state: "deployment_prepared", failure_class: "", mode: "DRY_WIRE", state_timeline: [], observation_state: "queued_for_review", simulation_result: { status: "success", failureRisk: "LOW" } },
       ],
+      deployedMints: [
+        { mint: "So11111111111111111111111111111111111111112", ticker: "BANANA", token_name: "Banana Dog", creator_fee_status: "pending", launch_score: 91 },
+      ],
+      feeClaims: [
+        { mint: "So11111111111111111111111111111111111111112", pool: "pump", status: "claimed", claimed_sol: 2.41 },
+      ],
       errors: [err.message],
     };
   }
 }
 
-function renderMissionControl({ source, clusters, shadowLaunches, deployments, errors }) {
+function renderMissionControl({ source, clusters, shadowLaunches, deployments, deployedMints = [], feeClaims = [], errors }) {
   const activeWarnings = deployments.filter((item) => item.failure_class || item.deployment_state === "failed").length;
+  const claimedSol = feeClaims.reduce((sum, claim) => sum + Number(claim.claimed_sol || 0), 0);
+  const pendingFeeClaims = feeClaims.filter((claim) => ["pending", "blocked", "timeout"].includes(claim.status)).length;
+  const topEarning = [...deployedMints].sort((a, b) => Number(b.estimated_creator_fees_sol || b.launch_score || 0) - Number(a.estimated_creator_fees_sol || a.launch_score || 0))[0] || {};
   return `<!doctype html>
 <html>
 <head>
@@ -147,7 +160,18 @@ function renderMissionControl({ source, clusters, shadowLaunches, deployments, e
       <div class="panel"><h2>Failure Diagnostics</h2>${table(["Attempt", "State", "Failure"], deployments.map((d) => [d.attempt_id, d.deployment_state, d.failure_class || "none"]))}</div>
       <div class="panel"><h2>Provider Health</h2><p class="ok">PumpPortal adapter: DRY-WIRE</p><p class="muted">Broadcast: disabled</p><p class="muted">Wallets: disabled</p></div>
       <div class="panel"><h2>Observation Review Queue</h2>${table(["Ticker", "Review State", "Simulation", "Would Launch Again"], deployments.map((d) => [d.ticker, d.observation_state || "queued_for_review", d.simulation_result?.status || "pending", "unvoted"]))}</div>
+      <div class="panel"><h2>Treasury</h2><p class="metric">${claimedSol.toFixed(2)} SOL</p><p class="muted">Creator fees claimed</p><p>Top launch: <b>$${escapeHtml(topEarning.ticker || "N/A")}</b></p><p>Pending fee claims: <b>${pendingFeeClaims}</b></p><p class="muted">Buybacks: planned only, not active</p></div>
       <div class="panel"><h2>Telegram Deep Links</h2><p><a href="https://t.me/" style="color:#9ee7ff">Open Telegram</a></p><p class="muted">Alerts remain Telegram-first; no actions are executed from this dashboard.</p></div>
+    </section>
+    <section class="panel">
+      <h2>Creator Fee Claims</h2>
+      ${table(["Ticker", "Mint", "Status", "Pool", "Claimed"], feeClaims.slice(0, 10).map((claim) => [
+        deployedMints.find((mint) => mint.mint === claim.mint)?.ticker || "N/A",
+        claim.mint || "all pump",
+        claim.status || "pending",
+        claim.pool || "pump",
+        `${Number(claim.claimed_sol || 0).toFixed(4)} SOL`,
+      ]))}
     </section>
   </main>
 </body>
