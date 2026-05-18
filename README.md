@@ -124,7 +124,7 @@ Narrative memory tracks:
 
 If the dedicated memory table is missing or rejects a payload, OINK retries a minimal insert and falls back to the existing `trend_snapshots` table. Scans should continue even when Supabase schema changes are incomplete.
 
-Apply `supabase/migration.sql` in the Supabase SQL editor to create or update the memory table and indexes.
+Apply `supabase/migration.sql` in the Supabase SQL editor to create or update the memory table and indexes. If Railway reports missing live tables or columns, run `supabase/repair_live_schema.sql`; it is idempotent and repairs narrative snapshots, shadow launches, deployment attempts, launch assets, deployed mints, and creator-fee claims without deleting data.
 
 ## Cross-Platform Artifact Engine
 
@@ -214,7 +214,7 @@ Before PumpPortal metadata is considered hosted-ready, OINK prepares a rehosted 
 
 The hosted asset pipeline supports local storage, temporary CDN preparation, future IPFS, and future PumpPortal-native upload adapters. It creates a metadata-safe PNG, a square launch image, and a resized thumbnail, then freezes an immutable deployment package with hosted image URL, thumbnail URL, metadata URL, content hash, MIME, dimensions, upload provider, upload status, and artifact scores.
 
-When `ENABLE_REAL_LAUNCHES=true`, `LIVE_METADATA_STRICT_MODE` defaults on. Strict mode rejects synthetic dry-wire downloads, requires an actual downloaded/rehosted source or generated image, and requires a real upload target such as Pinata/IPFS, Arweave, or a PumpPortal upload endpoint before metadata can be considered live-eligible. The current provider classes are interfaces only; no real upload credentials, wallets, or broadcasts are enabled.
+When `ENABLE_REAL_LAUNCHES=true`, `LIVE_METADATA_STRICT_MODE` defaults on. Strict mode rejects synthetic dry-wire downloads, requires an actual downloaded/rehosted source or generated image, and requires a real upload target before metadata can be considered live-eligible. If `PINATA_JWT` is configured, OINK automatically uses Pinata/IPFS for live metadata and image hosting. Wallets, signing, and broadcasts remain gated separately and disabled by default.
 
 Placeholder and unresolved AI-hook images can remain in draft review, but they cannot become metadata-ready. Generic, corporate, overly realistic, unrelated, or weak-silhouette prompts are rejected before deployment readiness.
 

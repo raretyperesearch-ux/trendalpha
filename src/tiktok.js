@@ -32,12 +32,16 @@ function apiFetch(path) {
       const chunks = [];
       res.on("data", (chunk) => chunks.push(chunk));
       res.on("end", () => {
+        const body = Buffer.concat(chunks).toString("utf8");
         try {
-          const body = Buffer.concat(chunks).toString("utf8");
           const json = JSON.parse(body);
-          resolve(json);
+          resolve({ status: res.statusCode || 0, path, json, body });
         } catch (err) {
-          reject(new Error(`JSON parse failed: ${err.message}`));
+          const error = new Error(`JSON parse failed: ${err.message}`);
+          error.status = res.statusCode || 0;
+          error.path = path;
+          error.body = body.slice(0, 500);
+          reject(error);
         }
       });
     });
@@ -59,17 +63,22 @@ async function fetchTrendingHashtags(page = 1, limit = 50) {
   try {
     const path = `/api/trending/hashtag?period=7&limit=${limit}&page=${page}&country_code=US`;
     console.log(`    📊 Fetching trending hashtags (page ${page})...`);
-    const data = await apiFetch(path);
+    const response = await apiFetch(path);
+    const data = response.json;
 
     if (data.code !== 0 || !data.data?.list) {
-      console.error(`    ❌ API error:`, data.msg || "Unknown error");
-      return [];
+      logTikTokApiError({ endpointPath: path, status: response.status, data });
+      return {
+        list: [],
+        fatal: isFatalTikTokUpstreamError(data),
+        reason: data.msg || data.message || "Unknown error",
+      };
     }
 
-    return data.data.list;
+    return { list: data.data.list, fatal: false, reason: "" };
   } catch (err) {
-    console.error(`    ❌ Trending hashtag fetch failed:`, err.message);
-    return [];
+    logTikTokApiError({ endpointPath: err.path || "unknown", status: err.status || 0, data: null, err });
+    return { list: [], fatal: isFatalTikTokErrorMessage(err.message), reason: err.message };
   }
 }
 
@@ -140,14 +149,20 @@ async function fetchTrendingSongs(page = 1, limit = 20) {
     
     for (const path of paths) {
       try {
-        const data = await apiFetch(path);
+        const response = await apiFetch(path);
+        const data = response.json;
         if (data.code === 0 && data.data?.sound_list?.length > 0) {
           return data.data.sound_list;
         }
         if (data.code === 0 && data.data?.list?.length > 0) {
           return data.data.list;
         }
+        if (data.code !== 0) {
+          logTikTokApiError({ endpointPath: path, status: response.status, data });
+          if (isFatalTikTokUpstreamError(data)) break;
+        }
       } catch (e) {
+        logTikTokApiError({ endpointPath: path, status: e.status || 0, data: null, err: e });
         // try next path
       }
     }
@@ -217,15 +232,25 @@ export async function fetchTrends() {
   console.log("📱 Scanning TikTok for trends...");
 
   try {
-    // Fetch all 5 pages for the full top 100
-    const [h1, h2, h3, h4, h5] = await Promise.all([
-      fetchTrendingHashtags(1, 20),
-      fetchTrendingHashtags(2, 20),
-      fetchTrendingHashtags(3, 20),
-      fetchTrendingHashtags(4, 20),
-      fetchTrendingHashtags(5, 20),
-    ]);
-    const allHashtags = [...h1, ...h2, ...h3, ...h4, ...h5];
+    const allHashtags = [];
+    let upstreamIndexErrors = 0;
+    for (let page = 1; page <= 5; page += 1) {
+      const result = await fetchTrendingHashtags(page, 20);
+      allHashtags.push(...result.list);
+      if (result.fatal) {
+        upstreamIndexErrors += 1;
+        console.warn(`    ⚠️  Stopping TikTok pagination after fatal upstream error on page ${page}: ${result.reason}`);
+        break;
+      }
+      if (result.list.length === 0 && page === 1 && isFatalTikTokErrorMessage(result.reason)) {
+        console.warn("    ⚠️  Stopping TikTok pagination because page 1 returned an upstream index error");
+        break;
+      }
+      if (upstreamIndexErrors >= 2) {
+        console.warn("    ⚠️  Stopping TikTok pagination after repeated upstream index errors");
+        break;
+      }
+    }
     console.log(`  📊 Got ${allHashtags.length} trending hashtags from TikTok`);
 
     // Transform into our format
@@ -295,4 +320,42 @@ function formatViews(num) {
   if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
   if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
   return num.toString();
+}
+
+export function getTikTokApiErrorDiagnostics({ endpointPath = "unknown", status = 0, data = null, err = null } = {}) {
+  const message = String(data?.msg || data?.message || data?.error || err?.message || "Unknown error");
+  const code = data?.code ?? data?.status ?? err?.code ?? "";
+  const lower = message.toLowerCase();
+  const upstreamIndexError = lower.includes("no available es index");
+  const quotaOrPlanInvalid =
+    [401, 402, 403, 429].includes(Number(status)) ||
+    /quota|plan|subscription|unauthorized|forbidden|rate limit|exceeded|rapidapi/i.test(message);
+  return {
+    endpointPath,
+    status: Number(status || 0),
+    code,
+    message,
+    upstreamIndexError,
+    quotaOrPlanInvalid,
+    fatal: upstreamIndexError || quotaOrPlanInvalid,
+  };
+}
+
+export function isFatalTikTokUpstreamError(data = {}) {
+  return getTikTokApiErrorDiagnostics({ data }).fatal;
+}
+
+export function isFatalTikTokErrorMessage(message = "") {
+  return getTikTokApiErrorDiagnostics({ err: { message } }).fatal;
+}
+
+function logTikTokApiError({ endpointPath, status, data, err }) {
+  const diagnostics = getTikTokApiErrorDiagnostics({ endpointPath, status, data, err });
+  const planHint = diagnostics.quotaOrPlanInvalid ? " rapidapi_quota_or_plan_invalid=true" : "";
+  const upstreamHint = diagnostics.upstreamIndexError ? " upstream_index_error=true" : "";
+  console.error(
+    `    ❌ TikTok API error: status=${diagnostics.status || "n/a"} ` +
+    `code=${diagnostics.code || "n/a"} path=${diagnostics.endpointPath} ` +
+    `msg="${diagnostics.message}"${planHint}${upstreamHint}`
+  );
 }

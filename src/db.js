@@ -17,6 +17,7 @@ let warnedMissingNarrativeTable = false;
 let warnedMissingShadowLaunchTable = false;
 let warnedMissingDeploymentAttemptsTable = false;
 let warnedMissingLaunchAssetsTable = false;
+let ranSchemaDiagnostics = false;
 
 /**
  * Initialize Supabase client
@@ -24,7 +25,48 @@ let warnedMissingLaunchAssetsTable = false;
 export function initDB() {
   supabase = createClient(config.supabase.url, config.supabase.key);
   console.log("🗄️  Database connected");
+  void runSchemaDiagnostics();
   return supabase;
+}
+
+export async function runSchemaDiagnostics({ client = supabase, quiet = false } = {}) {
+  if (!client) return { ok: false, checks: [], missing: ["supabase_client_missing"] };
+  if (ranSchemaDiagnostics && !quiet) return { ok: true, skipped: true, checks: [] };
+  ranSchemaDiagnostics = true;
+
+  const checks = [
+    { table: "narrative_cluster_snapshots", select: "id,cluster_id,snapshot" },
+    { table: "shadow_launches", select: "launch_id,cluster_id,payload" },
+    { table: "deployment_attempts", select: "attempt_id,payload,deployment_state,failure_class" },
+    { table: "launch_assets", select: "launch_id,metadata_url,uploaded_image_url" },
+    { table: "deployed_token_mints", select: "mint,creator_fee_status" },
+    { table: "creator_fee_claims", select: "mint,status,claimed_sol" },
+  ];
+
+  const results = [];
+  for (const check of checks) {
+    try {
+      const query = client.from(check.table).select(check.select).limit(1);
+      const { error } = typeof query.then === "function" ? await query : await Promise.resolve(query);
+      if (error) throw error;
+      results.push({ ...check, ok: true, error: null });
+    } catch (err) {
+      const message = err?.message || String(err);
+      results.push({ ...check, ok: false, error: message, code: err?.code || "" });
+      if (!quiet) {
+        console.warn(
+          `⚠️  Supabase schema diagnostic: ${check.table} missing/invalid (${message}). ` +
+          "Run supabase/repair_live_schema.sql."
+        );
+      }
+    }
+  }
+
+  const missing = results.filter((result) => !result.ok).map((result) => result.table);
+  if (!quiet && missing.length === 0) {
+    console.log("✅ Supabase live schema diagnostics passed");
+  }
+  return { ok: missing.length === 0, checks: results, missing };
 }
 
 // ----------------------------------------------------------

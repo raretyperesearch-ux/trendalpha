@@ -48,7 +48,11 @@
     "test-x-throttle": "node src/scripts/testXThrottle.js",
     "test-x-launch": "node src/scripts/testXLaunchScoring.js",
     "test-tiktok-launch-filter": "node src/scripts/testTikTokLaunchFilter.js",
-    "test-tiktok-launch-path": "node src/scripts/testTikTokLaunchPath.js"
+    "test-tiktok-launch-path": "node src/scripts/testTikTokLaunchPath.js",
+    "test-deployment-metadata-failure": "node src/scripts/testDeploymentMetadataFailure.js",
+    "test-live-metadata-provider": "node src/scripts/testLiveMetadataProvider.js",
+    "test-supabase-schema-diagnostics": "node src/scripts/testSupabaseSchemaDiagnostics.js",
+    "test-tiktok-provider-errors": "node src/scripts/testTikTokProviderErrors.js"
   },
   "dependencies": {
     "@solana/web3.js": "^1.98.4",

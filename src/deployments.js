@@ -56,6 +56,10 @@ export async function prepareAndPersistDeploymentAttempt(shadowLaunch, {
     } else if (machine.state !== "failed") {
       machine.fail("metadata_failure", "Hosted metadata validation failed", { errors: hostedMetadata.metadataValidation.errors });
     }
+  } else if (machine.state !== "failed") {
+    machine.fail("metadata_failure", "Hosted metadata could not be prepared", {
+      provider: getMetadataProviderName(),
+    });
   }
   if (machine.state !== "failed") machine.transition("payload_ready", { reason: "provider_payload_ready" });
   if (machine.state !== "failed" && deploymentAttempt.validation.valid) machine.transition("validation_passed", { reason: "payload_validation_passed" });
@@ -144,9 +148,18 @@ function evaluateFinalLaunchGate(deploymentAttempt) {
 }
 
 async function prepareHostedMetadataForAttempt(deploymentAttempt) {
+  const provider = getMetadataProviderName();
   try {
-    if (!deploymentAttempt.payload?.metadata?.imageUpload) return null;
+    if (!deploymentAttempt.payload?.metadata?.imageUpload) {
+      console.log(`   🧾 metadata_provider=${provider} hosted_metadata_ready=false`);
+      return null;
+    }
     const hosted = await preparePumpPortalMetadataPackage(deploymentAttempt);
+    const loggedProvider = normalizeMetadataProviderName(hosted.report?.uploadProvider || provider);
+    console.log(
+      `   🧾 metadata_provider=${loggedProvider} ` +
+      `hosted_metadata_ready=${hosted.metadataValidation.valid ? "true" : "false"}`
+    );
     if (hosted.metadataValidation.valid) {
       console.log(`   🖼️  Hosted metadata prepared: ${hosted.metadataUpload?.metadataUrl || "dry-wire"}`);
       return hosted;
@@ -154,10 +167,20 @@ async function prepareHostedMetadataForAttempt(deploymentAttempt) {
     console.log(`   ⚠️  Hosted metadata not ready: ${hosted.metadataValidation.errors.join(", ") || hosted.imageValidation.errors.join(", ")}`);
     return hosted;
   } catch (err) {
-    console.warn(`   ⚠️  Hosted metadata preparation skipped: ${err.message}`);
+    console.warn(`   ⚠️  Hosted metadata preparation skipped: metadata_provider=${provider} hosted_metadata_ready=false ${err.message}`);
     deploymentAttempt.failureClass = classifyDeploymentFailure(err);
     return null;
   }
+}
+
+function getMetadataProviderName() {
+  if (config.launch.enableRealLaunches && config.pinata.jwtPresent) return "pinata";
+  return config.metadata.uploadProvider || config.metadata.assetHostingProvider || "dry_wire";
+}
+
+function normalizeMetadataProviderName(provider = "") {
+  if (provider === "pinata_ipfs") return "pinata";
+  return provider || "dry_wire";
 }
 
 function logDeploymentAttempt(attempt) {

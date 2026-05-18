@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { Blob } from "node:buffer";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { deflateSync } from "node:zlib";
@@ -54,14 +55,73 @@ export class MetadataUploadProvider {
 export class PinataMetadataUploadProvider extends MetadataUploadProvider {
   constructor(options = {}) {
     super({ ...options, provider: "pinata_ipfs" });
+    this.jwt = options.pinataJwt || process.env.PINATA_JWT || "";
+    this.uploadUrl = options.uploadUrl || config.pinata.uploadUrl;
   }
 
-  async uploadImage() {
-    throw new Error("Pinata/IPFS upload provider is a dry-wire interface only; credentials and upload implementation are not enabled");
+  async uploadImage({ buffer, mimeType, hash, extension, imageAsset }) {
+    const uploaded = await this.uploadPinataFile({
+      filename: `${hash}.${extension || extensionFromMime(mimeType)}`,
+      contentType: mimeType,
+      buffer,
+    });
+    return {
+      provider: this.provider,
+      status: "uploaded",
+      uploaded: true,
+      hostedImageUrl: `https://ipfs.io/ipfs/${uploaded.cid}`,
+      cid: uploaded.cid,
+      storageKey: uploaded.cid,
+      byteSize: buffer.length,
+      mimeType,
+      sourceImageUrl: imageAsset.imageUrl || imageAsset.image || "",
+      note: "Uploaded image to Pinata/IPFS.",
+    };
   }
 
-  async uploadMetadata() {
-    throw new Error("Pinata/IPFS metadata upload provider is a dry-wire interface only; credentials and upload implementation are not enabled");
+  async uploadMetadata({ metadataJson, hash }) {
+    const buffer = Buffer.from(JSON.stringify(metadataJson, null, 2));
+    const uploaded = await this.uploadPinataFile({
+      filename: `${hash}.json`,
+      contentType: "application/json",
+      buffer,
+    });
+    return {
+      provider: this.provider,
+      status: "uploaded",
+      uploaded: true,
+      metadataUrl: `https://ipfs.io/ipfs/${uploaded.cid}`,
+      cid: uploaded.cid,
+      storageKey: uploaded.cid,
+      byteSize: buffer.length,
+      note: "Uploaded metadata JSON to Pinata/IPFS.",
+    };
+  }
+
+  async uploadPinataFile({ filename, contentType, buffer }) {
+    if (!this.jwt) throw new Error("pinata_jwt_missing");
+    const form = new FormData();
+    form.append("network", "public");
+    form.append("file", new Blob([buffer], { type: contentType }), filename);
+    const res = await fetch(this.uploadUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${this.jwt}`,
+      },
+      body: form,
+    });
+    let body = null;
+    try {
+      body = await res.json();
+    } catch {
+      body = null;
+    }
+    if (!res.ok) {
+      throw new Error(`Pinata upload failed: ${res.status} ${body?.error || body?.message || res.statusText || ""}`.trim());
+    }
+    const cid = body?.data?.cid || body?.cid || body?.IpfsHash;
+    if (!cid) throw new Error("Pinata upload response missing CID");
+    return { cid, body };
   }
 }
 
@@ -136,7 +196,7 @@ export class ImageDownloadRehostPipeline {
         imageAsset,
         hostedImageUrl: metadataSafe?.url,
       });
-      if (metadataSafe?.url) upload.hostedImageUrl = metadataSafe.url;
+      if (metadataSafe?.url && upload.provider === "dry_wire") upload.hostedImageUrl = metadataSafe.url;
     }
 
     const metadataJson = buildPumpPortalMetadataJson({
@@ -155,14 +215,18 @@ export class ImageDownloadRehostPipeline {
     let metadataUpload = null;
     if (metadataValidation.valid) {
       const metadataHash = hashText(JSON.stringify(metadataJson));
-      metadataUpload = await this.assetHostingProvider.uploadAsset({
-        buffer: Buffer.from(JSON.stringify(metadataJson, null, 2)),
-        filename: `${metadataHash}.json`,
-        contentType: "application/json",
-        kind: "metadata",
-        hash: metadataHash,
-      });
-      metadataUpload.metadataUrl = metadataUpload.url;
+      if (this.uploadProvider.provider === "pinata_ipfs") {
+        metadataUpload = await this.uploadProvider.uploadMetadata({ metadataJson, hash: metadataHash });
+      } else {
+        metadataUpload = await this.assetHostingProvider.uploadAsset({
+          buffer: Buffer.from(JSON.stringify(metadataJson, null, 2)),
+          filename: `${metadataHash}.json`,
+          contentType: "application/json",
+          kind: "metadata",
+          hash: metadataHash,
+        });
+        metadataUpload.metadataUrl = metadataUpload.url;
+      }
     }
 
     const report = buildMetadataDryRunReport({
@@ -266,7 +330,8 @@ export class ImageDownloadRehostPipeline {
 
 export async function prepareHostedPumpPortalMetadata(deploymentAttempt, options = {}) {
   const liveMode = options.liveMode ?? (deploymentAttempt.mode === "LIVE_DISABLED_SKELETON" || deploymentAttempt.payload?.mode === "live_skeleton");
-  return new ImageDownloadRehostPipeline({ ...options, liveMode }).prepare({ deploymentAttempt });
+  const provider = options.provider || (liveMode && config.pinata.jwtPresent ? "pinata" : undefined);
+  return new ImageDownloadRehostPipeline({ ...options, provider, liveMode }).prepare({ deploymentAttempt });
 }
 
 export function buildPumpPortalMetadataJson({ metadata = {}, deploymentAttempt = {}, hostedImageUrl = "", imageReview = {} }) {
@@ -529,6 +594,14 @@ function detectImage(buffer) {
     return detectJpeg(buffer);
   }
   return { mimeType: "application/octet-stream", extension: "bin", width: 0, height: 0 };
+}
+
+function extensionFromMime(mimeType = "") {
+  if (mimeType === "image/png") return "png";
+  if (mimeType === "image/jpeg") return "jpg";
+  if (mimeType === "image/webp") return "webp";
+  if (mimeType === "image/gif") return "gif";
+  return "bin";
 }
 
 function createDerivativePng({ hash, kind, size }) {
