@@ -65,7 +65,17 @@ async function loadMissionControlData() {
         },
       ],
       deployments: [
-        { attempt_id: "deploy-cluster-banana", ticker: "BANANA", deployment_state: "deployment_prepared", failure_class: "", mode: "DRY_WIRE", state_timeline: [], observation_state: "queued_for_review", simulation_result: { status: "success", failureRisk: "LOW" } },
+        {
+          attempt_id: "deploy-cluster-banana",
+          ticker: "BANANA",
+          deployment_state: "deployment_prepared",
+          failure_class: "",
+          mode: "DRY_WIRE",
+          payload: { vanityMint: { suffixRequested: "oink", suffixFound: false, attempts: 0, durationMs: 0, required: true, blockedReason: "" } },
+          state_timeline: [],
+          observation_state: "queued_for_review",
+          simulation_result: { status: "success", failureRisk: "LOW" },
+        },
       ],
       deployedMints: [
         { mint: "So11111111111111111111111111111111111111112", ticker: "BANANA", token_name: "Banana Dog", creator_fee_status: "pending", launch_score: 91 },
@@ -159,6 +169,7 @@ function renderMissionControl({ source, clusters, shadowLaunches, deployments, d
       <div class="panel"><h2>Dry-Run Payload Inspector</h2><pre>${escapeHtml(JSON.stringify(deployments[0]?.payload || {}, null, 2)).slice(0, 2200)}</pre></div>
       <div class="panel"><h2>Failure Diagnostics</h2>${table(["Attempt", "State", "Failure"], deployments.map((d) => [d.attempt_id, d.deployment_state, d.failure_class || "none"]))}</div>
       <div class="panel"><h2>Provider Health</h2><p class="ok">PumpPortal adapter: DRY-WIRE</p><p class="muted">Broadcast: disabled</p><p class="muted">Wallets: disabled</p></div>
+      <div class="panel"><h2>Vanity CA</h2>${renderVanityPanel(deployments)}</div>
       <div class="panel"><h2>Observation Review Queue</h2>${table(["Ticker", "Review State", "Simulation", "Would Launch Again"], deployments.map((d) => [d.ticker, d.observation_state || "queued_for_review", d.simulation_result?.status || "pending", "unvoted"]))}</div>
       <div class="panel"><h2>Treasury</h2><p class="metric">${claimedSol.toFixed(2)} SOL</p><p class="muted">Creator fees claimed</p><p>Top launch: <b>$${escapeHtml(topEarning.ticker || "N/A")}</b></p><p>Pending fee claims: <b>${pendingFeeClaims}</b></p><p class="muted">Buybacks: planned only, not active</p></div>
       <div class="panel"><h2>Telegram Deep Links</h2><p><a href="https://t.me/" style="color:#9ee7ff">Open Telegram</a></p><p class="muted">Alerts remain Telegram-first; no actions are executed from this dashboard.</p></div>
@@ -176,6 +187,15 @@ function renderMissionControl({ source, clusters, shadowLaunches, deployments, d
   </main>
 </body>
 </html>`;
+}
+
+function renderVanityPanel(deployments) {
+  const last = deployments.find((item) => item.payload?.vanityMint)?.payload?.vanityMint || {};
+  return `<p>Suffix: <b>${escapeHtml(last.suffixRequested || process.env.VANITY_MINT_SUFFIX || "oink")}</b></p>
+    <p>Required: <b>${last.required === false ? "false" : "true"}</b></p>
+    <p>Last attempts: <b>${Number(last.attempts || 0).toLocaleString()}</b></p>
+    <p>Last duration: <b>${Number(last.durationMs || 0).toLocaleString()}ms</b></p>
+    <p>Last result: <b class="${last.suffixFound ? "ok" : last.blockedReason ? "bad" : "warn"}">${last.suffixFound ? "FOUND" : last.blockedReason || "PENDING"}</b></p>`;
 }
 
 function renderDeployment(d) {

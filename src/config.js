@@ -7,6 +7,7 @@ const required = (key) => {
 };
 
 const optional = (key, fallback) => process.env[key] || fallback;
+const optionalRaw = (key, fallback) => Object.prototype.hasOwnProperty.call(process.env, key) ? process.env[key] : fallback;
 const optionalBool = (key, fallback) => {
   const val = optional(key, fallback ? "true" : "false").toLowerCase();
   return ["1", "true", "yes", "on"].includes(val);
@@ -179,6 +180,13 @@ export const config = {
     slippage: optionalInt("PUMPPORTAL_SLIPPAGE", "10"),
     priorityFee: Number(optional("PUMPPORTAL_PRIORITY_FEE_SOL", "0.00001")),
     pool: optional("PUMPPORTAL_POOL", "pump"),
+  },
+  vanityMint: {
+    suffix: optionalRaw("VANITY_MINT_SUFFIX", "oink").trim(),
+    maxAttempts: optionalInt("VANITY_MINT_MAX_ATTEMPTS", "15000000"),
+    timeoutMs: optionalInt("VANITY_MINT_TIMEOUT_MS", "30000"),
+    caseInsensitive: optionalBool("VANITY_MINT_CASE_INSENSITIVE", true),
+    requireMatch: optionalBool("VANITY_MINT_REQUIRE_MATCH", true),
   },
   creatorFees: {
     sweepIntervalHours: optionalInt("CREATOR_FEE_SWEEP_INTERVAL_HOURS", "24"),

@@ -684,6 +684,7 @@ export function formatDeploymentReadyAlert(deploymentAttempt) {
   const identity = payload.identity?.selected || {};
   const metadataPreview = payload.finalMetadataPreview || {};
   const finalGate = payload.finalLaunchGate || {};
+  const vanity = payload.vanityMint || deploymentAttempt.vanityMint || {};
 
   let msg = `🐷 <b>OINK DEPLOYMENT READY</b>\n\n`;
   msg += `<b>$${escapeHtml(deploymentAttempt.ticker || payload.token?.symbol || "OINK")}</b>\n`;
@@ -700,6 +701,15 @@ export function formatDeploymentReadyAlert(deploymentAttempt) {
   msg += `Deployment Status:\n<b>${escapeHtml(formatLabel(deploymentAttempt.deploymentState || "payload_ready"))}</b>\n\n`;
   msg += `PumpPortal:\n<b>${pumpPortal.connected ? "CONNECTED" : "OFFLINE"}</b>\n\n`;
   msg += `Mode:\n<b>${escapeHtml(deploymentAttempt.mode || "DRY_WIRE")}</b>\n\n`;
+  if (vanity.suffixRequested || vanity.required) {
+    msg += `<b>Vanity CA:</b>\n`;
+    msg += `<code>`;
+    msg += `requested: ${vanity.suffixRequested || "none"}\n`;
+    msg += `found:     ${vanity.suffixFound ? "yes" : "no"}\n`;
+    msg += `attempts:  ${Number(vanity.attempts || 0)}\n`;
+    msg += `duration:  ${Number(vanity.durationMs || 0)}ms`;
+    msg += `</code>\n\n`;
+  }
   msg += `<b>Final Metadata Preview:</b>\n`;
   msg += `<code>`;
   msg += `name: ${metadataPreview.name || payload.token?.name || "n/a"}\n`;

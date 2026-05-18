@@ -19,6 +19,8 @@ setEnv({
   TREASURY_WALLET_PUBLIC_KEY: treasury.publicKey.toBase58(),
   FEE_WALLET_PUBLIC_KEY: fee.publicKey.toBase58(),
   MONITORING_WALLET_PUBLIC_KEY: monitoring.publicKey.toBase58(),
+  VANITY_MINT_SUFFIX: "",
+  VANITY_MINT_REQUIRE_MATCH: "false",
   PINATA_JWT: "test-pinata-jwt",
   SOLANA_RPC_URL: "https://rpc.example",
 });

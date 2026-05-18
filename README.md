@@ -180,6 +180,8 @@ OINK includes the official PumpPortal Local Transaction API flow behind hard lau
 
 Defaults remain locked: `ENABLE_REAL_LAUNCHES=false` and `SIGNER_DISABLED=true`. The local flow refuses launch unless signer safety, final launch gate, identity quality, metadata upload, transaction simulation, and saturation safety all pass. It must never log private keys, raw signer secrets, or serialized signed transaction payloads.
 
+OINK also supports required vanity mint generation before a live PumpPortal launch continues. By default `VANITY_MINT_SUFFIX=oink`, `VANITY_MINT_REQUIRE_MATCH=true`, and matching is case-insensitive because Solana base58 addresses do not allow uppercase `O`. If the suffix cannot be found before `VANITY_MINT_MAX_ATTEMPTS` or `VANITY_MINT_TIMEOUT_MS`, launch execution is blocked with `vanity_mint_not_found`; OINK never falls back to a random mint when a match is required. Only mint public-key diagnostics are persisted.
+
 ## Creator Fee Treasury
 
 OINK can track deployed token mints and prepare PumpPortal `collectCreatorFee` claims through the Local Transaction API. The supported pools are `pump` and `meteora-dbc`; Pump claims can be collected all at once, while Meteora DBC claims include the mint being claimed. Creator fee sweeps stay behind the same real-launch and signer safety gates.

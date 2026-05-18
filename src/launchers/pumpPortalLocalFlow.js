@@ -65,10 +65,34 @@ export class PumpPortalLocalLaunchFlow {
       };
     }
 
+    const vanityMint = this.generateMintKeypair();
+    deploymentAttempt.vanityMint = vanityMint.diagnostics;
+    deploymentAttempt.payload = {
+      ...(deploymentAttempt.payload || {}),
+      vanityMint: vanityMint.diagnostics,
+    };
+    if (!vanityMint.keypair) {
+      deploymentAttempt.deploymentState = "failed";
+      deploymentAttempt.failureClass = "validation_failure";
+      deploymentAttempt.failure = {
+        failureClass: "validation_failure",
+        message: vanityMint.diagnostics.blockedReason || "vanity_mint_not_found",
+        stage: "vanity_mint_generation",
+      };
+      if (persist) await saveDeploymentAttempt(deploymentAttempt);
+      return {
+        status: "blocked",
+        deploymentState: "failed",
+        failureClass: "validation_failure",
+        blockedReason: vanityMint.diagnostics.blockedReason || "vanity_mint_not_found",
+        vanityMint: vanityMint.diagnostics,
+      };
+    }
+
     const metadata = deploymentAttempt.payload?.metadata || {};
     const imageUpload = await this.uploadLaunchImage(deploymentAttempt);
     const metadataUpload = await this.uploadMetadataJson(deploymentAttempt, imageUpload.imageUri);
-    const mintKeypair = this.KeypairClass.generate();
+    const mintKeypair = vanityMint.keypair;
     const mint = mintKeypair.publicKey.toBase58();
     const txRequest = this.buildCreateTransactionRequest(deploymentAttempt, metadataUpload.metadataUri, mint);
     const serialized = await this.requestCreateTransaction(txRequest);
@@ -109,6 +133,7 @@ export class PumpPortalLocalLaunchFlow {
       imageUri: imageUpload.imageUri,
       imageCid: imageUpload.cid,
       metadataCid: metadataUpload.cid,
+      vanityMint: vanityMint.diagnostics,
       launchTimestamp: this.now().toISOString(),
       confirmationLatencyMs,
       launchScore: deploymentAttempt.payload?.launchContext?.launchReadiness,
@@ -127,6 +152,7 @@ export class PumpPortalLocalLaunchFlow {
     deploymentAttempt.imageUri = result.imageUri;
     deploymentAttempt.imageCid = result.imageCid;
     deploymentAttempt.metadataCid = result.metadataCid;
+    deploymentAttempt.vanityMint = result.vanityMint;
     deploymentAttempt.launchTimestamp = result.launchTimestamp;
     deploymentAttempt.confirmationLatencyMs = result.confirmationLatencyMs;
     deploymentAttempt.launchScore = result.launchScore;
@@ -251,6 +277,74 @@ export class PumpPortalLocalLaunchFlow {
     };
   }
 
+  generateMintKeypair() {
+    const suffix = normalizeVanitySuffix(config.vanityMint.suffix);
+    const startedAt = Date.now();
+    if (!suffix) {
+      const keypair = this.KeypairClass.generate();
+      return {
+        keypair,
+        diagnostics: {
+          suffixRequested: "",
+          suffixFound: true,
+          attempts: 1,
+          durationMs: Date.now() - startedAt,
+          required: false,
+          blockedReason: "",
+          mintPublicKey: keypair.publicKey.toBase58(),
+        },
+      };
+    }
+
+    const requested = config.vanityMint.suffix;
+    const target = config.vanityMint.caseInsensitive ? suffix.toLowerCase() : suffix;
+    const maxAttempts = Math.max(1, Number(config.vanityMint.maxAttempts || 1));
+    const timeoutMs = Math.max(1, Number(config.vanityMint.timeoutMs || 1));
+    let attempts = 0;
+
+    while (attempts < maxAttempts && Date.now() - startedAt <= timeoutMs) {
+      attempts += 1;
+      const keypair = this.KeypairClass.generate();
+      const publicKey = keypair.publicKey.toBase58();
+      const candidate = config.vanityMint.caseInsensitive ? publicKey.toLowerCase() : publicKey;
+      if (candidate.endsWith(target)) {
+        return {
+          keypair,
+          diagnostics: {
+            suffixRequested: requested,
+            suffixFound: true,
+            attempts,
+            durationMs: Date.now() - startedAt,
+            required: Boolean(config.vanityMint.requireMatch),
+            blockedReason: "",
+            mintPublicKey: publicKey,
+          },
+        };
+      }
+    }
+
+    const diagnostics = {
+      suffixRequested: requested,
+      suffixFound: false,
+      attempts,
+      durationMs: Date.now() - startedAt,
+      required: Boolean(config.vanityMint.requireMatch),
+      blockedReason: config.vanityMint.requireMatch ? "vanity_mint_not_found" : "",
+      mintPublicKey: "",
+    };
+    if (config.vanityMint.requireMatch) {
+      return { keypair: null, diagnostics };
+    }
+    const fallback = this.KeypairClass.generate();
+    return {
+      keypair: fallback,
+      diagnostics: {
+        ...diagnostics,
+        mintPublicKey: fallback.publicKey.toBase58(),
+      },
+    };
+  }
+
   async requestCreateTransaction(body) {
     const res = await this.fetchImpl(`${config.pumpPortal.apiBaseUrl.replace(/\/$/, "")}/trade-local`, {
       method: "POST",
@@ -368,6 +462,10 @@ function isHttpsUrl(url) {
   } catch {
     return false;
   }
+}
+
+function normalizeVanitySuffix(value = "") {
+  return String(value || "").trim().replace(/^[$\s]+/, "");
 }
 
 function sleep(ms) {
