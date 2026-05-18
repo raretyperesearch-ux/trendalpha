@@ -24,6 +24,8 @@ const launchedToken = {
   platform: "pump.fun",
   imageSource: "SOURCE POST MEDIA",
   buybackRoute: "pending",
+  txSignature: "5NmockConfirmedSignature111111111111111111111111111111111",
+  launchScore: 91,
 };
 
 if (shouldSend) {

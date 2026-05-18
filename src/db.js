@@ -498,6 +498,18 @@ export async function saveDeploymentAttempt(attempt) {
     failure_class: String(attempt.failure?.failureClass || attempt.failureClass || "").slice(0, 80),
     simulation_result: attempt.simulationResult || attempt.payload?.transactionSimulation || {},
     observation_state: String(attempt.observationState || "").slice(0, 80),
+    mint: String(attempt.mint || attempt.contractAddress || attempt.launchResult?.mint || "").slice(0, 80),
+    tx_signature: String(attempt.txSignature || attempt.launchResult?.txSignature || "").slice(0, 120),
+    metadata_uri: String(attempt.metadataUri || attempt.launchResult?.metadataUri || attempt.payload?.metadata?.hostedMetadataUrl || "").slice(0, 500),
+    image_uri: String(attempt.imageUri || attempt.launchResult?.imageUri || attempt.payload?.metadata?.image || "").slice(0, 500),
+    image_cid: String(attempt.imageCid || attempt.launchResult?.imageCid || "").slice(0, 120),
+    metadata_cid: String(attempt.metadataCid || attempt.launchResult?.metadataCid || "").slice(0, 120),
+    launch_timestamp: attempt.launchTimestamp || attempt.launchResult?.launchTimestamp || null,
+    confirmation_latency_ms: Math.round(Number(attempt.confirmationLatencyMs || attempt.launchResult?.confirmationLatencyMs || 0)),
+    launch_score: Math.round(Number(attempt.launchScore || attempt.launchResult?.launchScore || attempt.payload?.launchContext?.launchReadiness || 0)),
+    selected_identity: attempt.selectedIdentity || attempt.launchResult?.selectedIdentity || attempt.payload?.identity?.selected || {},
+    source_post_url: String(attempt.sourcePostUrl || attempt.launchResult?.sourcePostUrl || attempt.payload?.metadata?.sourceBacklink || "").slice(0, 500),
+    source_platform: String(attempt.sourcePlatform || attempt.launchResult?.sourcePlatform || attempt.payload?.metadata?.sourcePlatform || "").slice(0, 80),
     created_at: new Date().toISOString(),
   };
 

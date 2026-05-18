@@ -159,6 +159,20 @@ export const config = {
   },
   pumpPortal: {
     apiBaseUrl: optional("PUMPPORTAL_API_BASE_URL", "https://pumpportal.fun/api"),
+    apiKey: optional("PUMPPORTAL_API_KEY", ""),
+    createAmount: Number(optional("PUMPPORTAL_CREATE_AMOUNT_SOL", "0.0001")),
+    slippage: optionalInt("PUMPPORTAL_SLIPPAGE", "10"),
+    priorityFee: Number(optional("PUMPPORTAL_PRIORITY_FEE_SOL", "0.00001")),
+    pool: optional("PUMPPORTAL_POOL", "pump"),
+  },
+  pinata: {
+    jwtPresent: Boolean(optional("PINATA_JWT", "").trim()),
+    uploadUrl: optional("PINATA_UPLOAD_URL", "https://uploads.pinata.cloud/v3/files"),
+  },
+  solana: {
+    rpcUrl: optional("SOLANA_RPC_URL", ""),
+    confirmationTimeoutMs: optionalInt("SOLANA_CONFIRMATION_TIMEOUT_MS", "60000"),
+    confirmationPollMs: optionalInt("SOLANA_CONFIRMATION_POLL_MS", "2500"),
   },
   wallets: {
     signerDisabled: optionalBool("SIGNER_DISABLED", true),

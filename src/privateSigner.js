@@ -48,6 +48,25 @@ export function signDeploymentPayload({ role = "deploy_wallet", payload = {} } =
   };
 }
 
+export function getDeploySecretKeyBytesForSigning() {
+  const diagnostics = getDeployPrivateSignerDiagnostics();
+  if (!diagnostics.liveSignerReady) {
+    return {
+      ok: false,
+      reason: diagnostics.reason,
+      secretKeyBytes: [],
+      diagnostics,
+    };
+  }
+  const parsed = parseDeployWalletPrivateKey();
+  return {
+    ok: parsed.ok,
+    reason: parsed.ok ? "ready" : parsed.reason,
+    secretKeyBytes: parsed.ok ? Uint8Array.from(parsed.secretKeyBytes) : [],
+    diagnostics,
+  };
+}
+
 export function parseDeployWalletPrivateKey() {
   const raw = process.env.DEPLOY_WALLET_PRIVATE_KEY || "";
   if (!raw.trim()) {

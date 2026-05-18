@@ -174,6 +174,12 @@ Deployment validation checks ticker length and format, metadata completeness, du
 
 Real launches remain disabled. OINK does not use funded wallets, private keys, signatures, transaction submission, or PumpPortal broadcast calls.
 
+## PumpPortal Local Flow
+
+OINK includes the official PumpPortal Local Transaction API flow behind hard launch gates. When real launch testing is intentionally enabled later, the flow uploads the launch image to Pinata, uploads metadata JSON to Pinata, generates a mint keypair, requests a create transaction from `https://pumpportal.fun/api/trade-local`, deserializes the returned `VersionedTransaction`, signs locally with the mint keypair and deploy wallet, broadcasts through `SOLANA_RPC_URL`, polls confirmation, persists the mint/CA, transaction signature, image URI, metadata URI, source post, and only then sends the `OINK MARKET CREATED` Telegram alert.
+
+Defaults remain locked: `ENABLE_REAL_LAUNCHES=false` and `SIGNER_DISABLED=true`. The local flow refuses launch unless signer safety, final launch gate, identity quality, metadata upload, transaction simulation, and saturation safety all pass. It must never log private keys, raw signer secrets, or serialized signed transaction payloads.
+
 ## Metadata + Image Pipeline
 
 OINK does not treat images as decoration. Launch images are part of memetic identity formation: the image has to preserve the artifact, read at thumbnail size, survive screenshots, and invite remix.
@@ -349,7 +355,11 @@ npm run test-hosted-assets
 npm run test-metadata
 npm run test-image-pipeline
 npm run test-pumpportal
+npm run test-pumpportal-local-flow
 npm run test-pumpportal-metadata
+npm run test-pinata-upload
+npm run test-live-launch-gates
+npm run test-launch-confirmation
 npm run test-live-metadata-rules
 npm run test-source-media
 npm run test-telegram-alert

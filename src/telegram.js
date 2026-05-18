@@ -1113,8 +1113,9 @@ export function formatLaunchCreatedAlert({ trend, launchBrief, launchedToken, fe
   let msg = `🐷 <b>OINK MARKET CREATED</b>\n\n`;
   msg += `<b>${escapeHtml(ticker)}</b>\n`;
   msg += `${escapeHtml(launchedToken.name)}\n\n`;
+  msg += `Status:\n<b>LIVE</b>\n\n`;
   msg += `Source:\n<b>${escapeHtml(getSourceLabel(trend))}</b>\n\n`;
-  msg += `<b>Why It Launched:</b>\n`;
+  msg += `Launch Reason:\n`;
   const reasons = launchedToken.launchReasons || launchBrief.launchReasons || [
     "cross-community spread",
     "launch window prime",
@@ -1122,21 +1123,27 @@ export function formatLaunchCreatedAlert({ trend, launchBrief, launchedToken, fe
   ];
   for (const reason of reasons.slice(0, 3)) msg += `• ${escapeHtml(reason)}\n`;
   msg += `\n`;
-  msg += `Market:\n<b>${escapeHtml(launchedToken.platform || "Pump.fun / PumpPortal")}</b>\n\n`;
   msg += `CA:\n`;
   msg += `<code>${escapeHtml(launchedToken.contractAddress || "pending")}</code>\n\n`;
+  msg += `Pump.fun:\n`;
+  if (launchedToken.launchUrl) {
+    msg += `<a href="${escapeHtml(safeTelegramUrl(launchedToken.launchUrl, "https://pump.fun"))}">link</a>\n\n`;
+  } else {
+    msg += `pending\n\n`;
+  }
   msg += `Source Post:\n`;
   msg += `<a href="${escapeHtml(safeTelegramUrl(launchBrief.sourceUrl || trend.sourceUrl, trend.sourcePlatform === "x" ? "https://x.com" : "https://www.tiktok.com"))}">link</a>\n\n`;
   msg += `Image:\n<b>${escapeHtml(launchedToken.imageSource || launchBrief.imageSource || "SOURCE POST MEDIA / GENERATED")}</b>\n\n`;
+  if (launchedToken.txSignature) {
+    const txUrl = safeTelegramUrl(`https://solscan.io/tx/${launchedToken.txSignature}`, "https://solscan.io");
+    msg += `Tx:\n<a href="${escapeHtml(txUrl)}">${escapeHtml(txUrl)}</a>\n\n`;
+  }
+  if (launchedToken.launchScore !== undefined) {
+    msg += `Launch Score:\n<b>${Number(launchedToken.launchScore || 0)}/100</b>\n\n`;
+  }
   msg += `OINK Buyback Route:\n<b>${escapeHtml(launchedToken.buybackRoute || "pending")}</b>\n\n`;
   if (trend.sourcePlatform === "x" && launchBrief.socialTag) {
     msg += `X Narrative Tag:\n${escapeHtml(launchBrief.socialTag)}\n\n`;
-  }
-  msg += `Launch:\n`;
-  if (launchedToken.launchUrl) {
-    msg += `<a href="${escapeHtml(safeTelegramUrl(launchedToken.launchUrl, "https://pump.fun"))}">${escapeHtml(launchedToken.platform || "launch link")}</a>\n\n`;
-  } else {
-    msg += `${escapeHtml(launchedToken.platform || "pending")}\n\n`;
   }
   msg += `Flywheel:\nLaunch Fees → $OINK Buybacks\n`;
   if (feeSummary) msg += `${escapeHtml(feeSummary)}\n`;

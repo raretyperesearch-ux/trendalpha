@@ -2,6 +2,7 @@ import { config } from "../config.js";
 import { LaunchAdapter, createMockProviderResponse } from "./launchAdapter.js";
 import { prepareLaunchMetadata } from "../metadataPipeline.js";
 import { prepareHostedPumpPortalMetadata } from "../metadataAssets.js";
+import { executePumpPortalLocalLaunch } from "./pumpPortalLocalFlow.js";
 
 const DEPLOYMENT_STATES = {
   PREPARING: "preparing",
@@ -119,6 +120,10 @@ export class PumpPortalProvider extends LaunchAdapter {
 
   async uploadAssets(deploymentAttempt, options = {}) {
     return prepareHostedPumpPortalMetadata(deploymentAttempt, options);
+  }
+
+  async executeLocalLaunch(deploymentAttempt, options = {}) {
+    return executePumpPortalLocalLaunch(deploymentAttempt, options);
   }
 
   buildDeploymentPayload(shadowLaunch) {
@@ -255,10 +260,13 @@ export class PumpPortalProvider extends LaunchAdapter {
       };
     }
     return {
-      status: "prepared_stub",
-      broadcastReady: false,
-      transaction: "unsigned-transaction-placeholder",
-      note: "Transaction preparation stub only. No wallet, signing, or broadcast.",
+      status: this.enableRealLaunches ? "local_api_flow_ready" : "prepared_stub",
+      broadcastReady: Boolean(this.enableRealLaunches),
+      transaction: this.enableRealLaunches ? "pumpportal-local-flow" : "unsigned-transaction-placeholder",
+      endpoint: this.enableRealLaunches ? `${config.pumpPortal.apiBaseUrl.replace(/\/$/, "")}/trade-local` : "",
+      note: this.enableRealLaunches
+        ? "PumpPortal Local Transaction API flow is available behind hard gates. Execution is explicit only."
+        : "Transaction preparation stub only. No wallet, signing, or broadcast.",
     };
   }
 

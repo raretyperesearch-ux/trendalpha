@@ -28,7 +28,11 @@
     "test-metadata": "node src/scripts/testMetadataPipeline.js",
     "test-image-pipeline": "node src/scripts/testImagePipeline.js",
     "test-pumpportal": "node src/scripts/testPumpPortalProvider.js",
+    "test-pumpportal-local-flow": "node src/scripts/testPumpPortalLocalFlow.js",
     "test-pumpportal-metadata": "node src/scripts/testPumpPortalMetadata.js",
+    "test-pinata-upload": "node src/scripts/testPinataUpload.js",
+    "test-live-launch-gates": "node src/scripts/testLiveLaunchGates.js",
+    "test-launch-confirmation": "node src/scripts/testLaunchConfirmation.js",
     "test-source-media": "node src/scripts/testSourceMedia.js",
     "test-telegram-alert": "node src/scripts/testTelegramAlert.js",
     "test-shadow-launches": "node src/scripts/testShadowLaunches.js",
@@ -36,7 +40,9 @@
     "test-x-launch": "node src/scripts/testXLaunchScoring.js"
   },
   "dependencies": {
+    "@solana/web3.js": "^1.98.4",
     "@supabase/supabase-js": "^2.39.0",
+    "bs58": "^6.0.0",
     "dotenv": "^16.3.1",
     "grammy": "^1.21.0",
     "node-cron": "^3.0.3",
