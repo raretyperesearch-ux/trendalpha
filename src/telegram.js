@@ -1211,9 +1211,19 @@ export function formatLaunchCreatedAlert({ trend, launchBrief, launchedToken, fe
     msg += `X Narrative Tag:\n${escapeHtml(launchBrief.socialTag)}\n\n`;
   }
   msg += `Flywheel:\nLaunch Fees → $OINK Buybacks\n`;
-  if (feeSummary) msg += `${escapeHtml(feeSummary)}\n`;
+  if (feeSummary) msg += `${escapeHtml(sanitizePublicFlywheelText(feeSummary))}\n`;
 
   return constrainTelegramMessage(msg);
+}
+
+function sanitizePublicFlywheelText(value = "") {
+  return String(value || "")
+    .replace(/\b\d+(?:\.\d+)?%\s*(?:buybacks?|treasury|ops|operations?)\b/gi, (match) => match.replace(/\d+(?:\.\d+)?%\s*/g, ""))
+    .replace(/\b\d+(?:\.\d+)?%\b/g, "")
+    .replace(/\s*,\s*,/g, ",")
+    .replace(/:\s*,/g, ":")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 function formatXMetricsCodeBlock(trend, options = {}) {

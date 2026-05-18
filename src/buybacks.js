@@ -6,5 +6,5 @@ export const BUYBACK_CONFIG = {
 };
 
 export function getBuybackSummary() {
-  return "Autonomous launch fees flow back into $OINK buybacks. Current model: 70% buybacks, 20% treasury, 10% ops.";
+  return "Autonomous launch fees flow back into $OINK buybacks, treasury growth, and operations.";
 }
