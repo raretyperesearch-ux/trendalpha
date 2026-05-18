@@ -11,6 +11,8 @@ import { buildNarrativeClusters, getStrongNarrativeClusters } from "../narrative
 import { prepareDryRunPumpPortalLaunch } from "../launchers/dryRunPumpPortalProvider.js";
 import { runMemoryOnlyLaunchTest } from "../shadowLaunches.js";
 import { prepareAndPersistDeploymentAttempt } from "../deployments.js";
+import { maybeExecuteLiveLaunchFromScan } from "../liveLaunchBridge.js";
+import { convertTikTokTrendToLaunchCluster, evaluateTikTokLaunchCandidate } from "../tiktokLaunchAdapter.js";
 import { scoreTrend } from "../scoring.js";
 import { scoreLaunchOpportunity } from "../launchScoring.js";
 import { generateLaunchBrief } from "../launchBrief.js";
@@ -147,8 +149,11 @@ async function main() {
     const earlyLaunchScore = config.launch.enableLaunchCandidates
       ? scoreLaunchOpportunity(trend, null, prevSnapshot)
       : null;
+    const earlyTikTokLaunch = trend.sourcePlatform === "tiktok"
+      ? evaluateTikTokLaunchCandidate(trend)
+      : null;
     const meetsThreshold = isNewEntry ? score.total >= 50 : score.total >= config.scan.minScore;
-    const mayQualifyForLaunch = qualifiesForLaunchReview(earlyLaunchScore);
+    const mayQualifyForLaunch = qualifiesForLaunchReview(earlyLaunchScore) || Boolean(earlyTikTokLaunch?.qualified);
     if (meetsThreshold || mayQualifyForLaunch) {
       // Cap alerts per scan
       if (alertsSent >= MAX_ALERTS_PER_SCAN) {
@@ -172,6 +177,19 @@ async function main() {
       if (trend.sourcePlatform === "x" && trend.launchWorthinessScore >= 62) {
         logLaunchWorthiness(trend);
       }
+
+      if (trend.sourcePlatform === "tiktok" && alertsSent < MAX_ALERTS_PER_SCAN) {
+        const tiktokDryRunSent = await maybePrepareTikTokDryRunLaunch({
+          trend,
+          token,
+          existingAlertCount: alertsSent,
+        });
+        if (tiktokDryRunSent) {
+          alertsSent++;
+          continue;
+        }
+      }
+
       const launchScore = config.launch.enableLaunchCandidates
         ? scoreLaunchOpportunity(trend, token, prevSnapshot)
         : null;
@@ -257,6 +275,39 @@ async function processNarrativeClusters(trends, alertsSent) {
   return sentCount;
 }
 
+async function maybePrepareTikTokDryRunLaunch({ trend, token, existingAlertCount }) {
+  if (existingAlertCount >= MAX_ALERTS_PER_SCAN) return false;
+  const evaluation = evaluateTikTokLaunchCandidate(trend, { token });
+  if (!evaluation.qualified) {
+    if ((evaluation.metrics.launchReadiness || 0) >= 65) {
+      console.log(`   🧪 TikTok dry-run rejected: ${trend.name} — ${evaluation.rejections.join(", ")}`);
+    }
+    return false;
+  }
+  const cluster = convertTikTokTrendToLaunchCluster(evaluation.trend, { token });
+  if (await wasShadowLaunchPreparedRecently(cluster.clusterId)) {
+    console.log(`   ⏭️  TikTok shadow launch already prepared recently: ${cluster.canonicalEntity}`);
+    return false;
+  }
+  const existingTickers = await getRecentShadowLaunchTickers();
+  const shadowLaunch = prepareDryRunPumpPortalLaunch(cluster, { existingTickers });
+  if (!shadowLaunch.identity?.ready) {
+    console.log(`   🧪 TikTok dry-run identity rejected: ${trend.name} — ${shadowLaunch.identity?.blockReason || "identity_quality_below_threshold"}`);
+    return false;
+  }
+  await saveShadowLaunch(shadowLaunch);
+  const sent = await sendDryRunLaunchAlert(shadowLaunch);
+  const deploymentAttempt = await prepareAndPersistDeploymentAttempt(shadowLaunch, {
+    existingTickers,
+    sendTelegram: sent,
+  });
+  await maybeExecuteLiveLaunchFromScan(deploymentAttempt, {
+    token,
+    sourcePlatform: "tiktok",
+  });
+  return sent;
+}
+
 async function maybePrepareDryRunLaunch(cluster, existingTickers, currentAlertCount) {
   if (currentAlertCount >= MAX_ALERTS_PER_SCAN) return false;
   if (!qualifiesForDryRunLaunch(cluster)) {
@@ -271,9 +322,12 @@ async function maybePrepareDryRunLaunch(cluster, existingTickers, currentAlertCo
   const shadowLaunch = prepareDryRunPumpPortalLaunch(cluster, { existingTickers });
   await saveShadowLaunch(shadowLaunch);
   const sent = await sendDryRunLaunchAlert(shadowLaunch);
-  await prepareAndPersistDeploymentAttempt(shadowLaunch, {
+  const deploymentAttempt = await prepareAndPersistDeploymentAttempt(shadowLaunch, {
     existingTickers,
     sendTelegram: sent,
+  });
+  await maybeExecuteLiveLaunchFromScan(deploymentAttempt, {
+    sourcePlatform: shadowLaunch.payload?.sourcePlatform || "x",
   });
   existingTickers.push(shadowLaunch.ticker);
   return sent;

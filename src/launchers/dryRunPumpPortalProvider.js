@@ -57,6 +57,7 @@ export class DryRunPumpPortalProvider {
         summary: narrativeSummary,
         archetype: cluster.archetype || "trendwave",
         phase: cluster.lifecycleState || "forming",
+        marketStatus: cluster.marketStatus || "unclaimed",
         launchReadiness: Math.round(Number(cluster.launchReadiness || 0)),
         swarmPressure: Math.round(Number(cluster.swarmPressure || 0)),
         identityStrength: getIdentityStrength(cluster),

@@ -14,6 +14,7 @@ import { buildNarrativeClusters, getStrongNarrativeClusters } from "./narrativeC
 import { prepareDryRunPumpPortalLaunch } from "./launchers/dryRunPumpPortalProvider.js";
 import { runMemoryOnlyLaunchTest } from "./shadowLaunches.js";
 import { prepareAndPersistDeploymentAttempt } from "./deployments.js";
+import { maybeExecuteLiveLaunchFromScan } from "./liveLaunchBridge.js";
 import { convertTikTokTrendToLaunchCluster, evaluateTikTokLaunchCandidate } from "./tiktokLaunchAdapter.js";
 import { scoreTrend } from "./scoring.js";
 import { scoreLaunchOpportunity } from "./launchScoring.js";
@@ -260,9 +261,13 @@ async function maybePrepareTikTokDryRunLaunch({ trend, token, existingAlertCount
   }
   await saveShadowLaunch(shadowLaunch);
   const sent = await sendDryRunLaunchAlert(shadowLaunch);
-  await prepareAndPersistDeploymentAttempt(shadowLaunch, {
+  const deploymentAttempt = await prepareAndPersistDeploymentAttempt(shadowLaunch, {
     existingTickers,
     sendTelegram: sent,
+  });
+  await maybeExecuteLiveLaunchFromScan(deploymentAttempt, {
+    token,
+    sourcePlatform: "tiktok",
   });
   return sent;
 }
@@ -320,9 +325,12 @@ async function maybePrepareDryRunLaunch(cluster, existingTickers, currentAlertCo
   const shadowLaunch = prepareDryRunPumpPortalLaunch(cluster, { existingTickers });
   await saveShadowLaunch(shadowLaunch);
   const sent = await sendDryRunLaunchAlert(shadowLaunch);
-  await prepareAndPersistDeploymentAttempt(shadowLaunch, {
+  const deploymentAttempt = await prepareAndPersistDeploymentAttempt(shadowLaunch, {
     existingTickers,
     sendTelegram: sent,
+  });
+  await maybeExecuteLiveLaunchFromScan(deploymentAttempt, {
+    sourcePlatform: shadowLaunch.payload?.sourcePlatform || "x",
   });
   existingTickers.push(shadowLaunch.ticker);
   return sent;

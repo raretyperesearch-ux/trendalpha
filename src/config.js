@@ -150,6 +150,7 @@ export const config = {
     enableLaunchCandidates: optionalBool("ENABLE_LAUNCH_CANDIDATES", true),
     memoryOnlyLaunchTestMode: optionalBool("MEMORY_ONLY_LAUNCH_TEST_MODE", false),
     enableRealLaunches,
+    enableLiveLaunchFromScan: optionalBool("ENABLE_LIVE_LAUNCH_FROM_SCAN", false),
     deploymentMinReadiness: optionalInt("DEPLOYMENT_MIN_LAUNCH_READINESS", "80"),
     deploymentMaxSwarmPressure: optionalInt("DEPLOYMENT_MAX_SWARM_PRESSURE", "40"),
     globalDisable: optionalBool("OINK_GLOBAL_LAUNCH_DISABLE", false),

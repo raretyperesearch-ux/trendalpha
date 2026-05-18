@@ -51,6 +51,7 @@ export function convertTikTokTrendToLaunchCluster(trend, { token = null } = {}) 
     launchWorthinessScore: m.launchReadiness,
     recommendation: m.launchReadiness >= 82 ? "EARLY_OPPORTUNITY" : "WATCH",
     phaseRecommendation: m.launchReadiness >= 82 ? "PREPARE_LAUNCH" : "WATCH",
+    marketStatus: token?.matchStatus === "canonical" ? "canonical" : "unclaimed",
     swarmPressure: m.swarmPressure,
     saturationPressure: m.saturationPressure,
     identityFormationScore: Math.max(m.memeticIdentityScore, sourceMediaValid ? 78 : 0),

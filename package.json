@@ -33,6 +33,7 @@
     "test-pumpportal-metadata": "node src/scripts/testPumpPortalMetadata.js",
     "test-pinata-upload": "node src/scripts/testPinataUpload.js",
     "test-live-launch-gates": "node src/scripts/testLiveLaunchGates.js",
+    "test-scan-live-launch-bridge": "node src/scripts/testScanLiveLaunchBridge.js",
     "test-launch-confirmation": "node src/scripts/testLaunchConfirmation.js",
     "test-creator-fees": "node src/scripts/testCreatorFees.js",
     "test-treasury-sweeps": "node src/scripts/testTreasurySweeps.js",
