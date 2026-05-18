@@ -46,6 +46,7 @@
     "test-shadow-launches": "node src/scripts/testShadowLaunches.js",
     "test-x": "node src/scripts/testXProvider.js",
     "test-x-throttle": "node src/scripts/testXThrottle.js",
+    "test-x-source-diversity": "node src/scripts/testXSourceDiversity.js",
     "test-x-launch": "node src/scripts/testXLaunchScoring.js",
     "test-tiktok-launch-filter": "node src/scripts/testTikTokLaunchFilter.js",
     "test-tiktok-launch-path": "node src/scripts/testTikTokLaunchPath.js",

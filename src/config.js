@@ -260,5 +260,9 @@ export const config = {
     scanIntervalMinutes: optionalInt("X_SCAN_INTERVAL_MINUTES", "60"),
     cacheTtlMinutes: optionalInt("X_CACHE_TTL_MINUTES", "60"),
     maxRequestsPerDay: optionalInt("X_MAX_REQUESTS_PER_DAY", "500"),
+    maxPostsPerAuthorPerScan: optionalInt("X_MAX_POSTS_PER_AUTHOR_PER_SCAN", "2"),
+    maxTrustedAccountPostsPerScan: optionalInt("X_MAX_TRUSTED_ACCOUNT_POSTS_PER_SCAN", "10"),
+    minBroadStreamPostsPerScan: optionalInt("X_MIN_BROAD_STREAM_POSTS_PER_SCAN", "10"),
+    enableTrustedAccounts: optionalBool("X_ENABLE_TRUSTED_ACCOUNTS", true),
   },
 };

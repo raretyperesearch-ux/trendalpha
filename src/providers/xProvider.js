@@ -16,6 +16,7 @@ const TRUSTED_VIRAL_ACCOUNTS = [
   "WorldStar",
   "NoContextHumans",
 ];
+const TRUSTED_VIRAL_ACCOUNT_KEYS = new Set(TRUSTED_VIRAL_ACCOUNTS.map(normalizeAuthor));
 
 // X rejects pure operator streams like "has:media lang:en"; these broad
 // neutral terms keep discovery attention-first while satisfying query syntax.
@@ -89,7 +90,7 @@ export async function fetchXAttention() {
 
   const querySources = config.x.searchQueries.length > 0
     ? config.x.searchQueries.map((query) => ({ lane: "custom", query }))
-    : DEFAULT_SEARCH_QUERIES;
+    : getDefaultSearchQueries();
   const validQueries = querySources
     .map(({ lane, query }) => ({ lane, query: sanitizeXQuery(query) }))
     .filter((item) => item.query);
@@ -168,8 +169,10 @@ export async function fetchXAttention() {
   }
 
   const sorted = posts.sort((a, b) => (b.attentionShapeScore || 0) - (a.attentionShapeScore || 0));
+  const diverse = applyXSourceDiversity(sorted);
+  logXLaneMix(diverse);
   xCache = {
-    posts: sorted,
+    posts: diverse,
     fetchedAt: Date.now(),
   };
   return cloneCachedPosts();
@@ -206,6 +209,48 @@ export function getXThrottleState() {
     requestCount: xRequestBudget.count,
     date: xRequestBudget.date,
   };
+}
+
+export function applyXSourceDiversity(posts = [], {
+  maxPostsPerAuthor = config.x.maxPostsPerAuthorPerScan,
+  maxTrustedPosts = config.x.maxTrustedAccountPostsPerScan,
+  minBroadPosts = config.x.minBroadStreamPostsPerScan,
+  enableTrustedAccounts = config.x.enableTrustedAccounts,
+} = {}) {
+  const sorted = [...posts].sort((a, b) => (b.attentionShapeScore || 0) - (a.attentionShapeScore || 0));
+  const selected = [];
+  const selectedIds = new Set();
+  const authorCounts = new Map();
+  let trustedCount = 0;
+
+  const canSelect = (post, { reserveBroad = false } = {}) => {
+    if (!post?.id || selectedIds.has(post.id)) return false;
+    if (!enableTrustedAccounts && isTrustedPost(post)) return false;
+    const authorKey = normalizeAuthor(post.author);
+    if (authorKey && (authorCounts.get(authorKey) || 0) >= maxPostsPerAuthor) return false;
+    if (!reserveBroad && isTrustedLane(post) && trustedCount >= maxTrustedPosts) return false;
+    return true;
+  };
+
+  const select = (post) => {
+    selected.push(post);
+    selectedIds.add(post.id);
+    const authorKey = normalizeAuthor(post.author);
+    if (authorKey) authorCounts.set(authorKey, (authorCounts.get(authorKey) || 0) + 1);
+    if (isTrustedLane(post)) trustedCount += 1;
+  };
+
+  for (const post of sorted) {
+    if (selected.filter(isBroadSourceLane).length >= minBroadPosts) break;
+    if (!isBroadSourceLane(post)) continue;
+    if (canSelect(post, { reserveBroad: true })) select(post);
+  }
+
+  for (const post of sorted) {
+    if (canSelect(post)) select(post);
+  }
+
+  return selected;
 }
 
 export function sanitizeXQuery(query) {
@@ -296,6 +341,11 @@ function hasSearchTerm(query) {
     if (normalized.includes(":")) return false;
     return /[a-z0-9]/i.test(normalized);
   });
+}
+
+function getDefaultSearchQueries() {
+  if (config.x.enableTrustedAccounts) return DEFAULT_SEARCH_QUERIES;
+  return DEFAULT_SEARCH_QUERIES.filter((item) => item.lane !== "trusted_viral_accounts");
 }
 
 async function searchRecent(query) {
@@ -867,6 +917,41 @@ function getKeywordBias(text = "") {
 function buildTrustedAccountQuery(accounts) {
   const accountQuery = accounts.map((account) => `from:${account}`).join(" OR ");
   return `(the OR this OR video OR clip OR watch) (${accountQuery}) lang:en -is:retweet -is:reply`;
+}
+
+function logXLaneMix(posts = []) {
+  const lanes = {
+    broad_media_stream: 0,
+    emerging_accounts: 0,
+    quote_explosion_watch: 0,
+    trusted_viral_accounts: 0,
+  };
+  for (const post of posts) {
+    if (Object.prototype.hasOwnProperty.call(lanes, post.discoveryLane)) {
+      lanes[post.discoveryLane] += 1;
+    }
+  }
+  console.log("   X lane mix:");
+  console.log(`      broad_media_stream=${lanes.broad_media_stream}`);
+  console.log(`      emerging_accounts=${lanes.emerging_accounts}`);
+  console.log(`      quote_explosion_watch=${lanes.quote_explosion_watch}`);
+  console.log(`      trusted_viral_accounts=${lanes.trusted_viral_accounts}`);
+}
+
+function isBroadSourceLane(post) {
+  return ["broad_media_stream", "emerging_accounts", "quote_explosion_watch", "custom"].includes(post.discoveryLane || "");
+}
+
+function isTrustedLane(post) {
+  return post.discoveryLane === "trusted_viral_accounts";
+}
+
+function isTrustedPost(post) {
+  return isTrustedLane(post) || TRUSTED_VIRAL_ACCOUNT_KEYS.has(normalizeAuthor(post.author));
+}
+
+function normalizeAuthor(author = "") {
+  return String(author || "").replace(/^@/, "").trim().toLowerCase();
 }
 
 function logAcceptedPost(post) {
