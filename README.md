@@ -329,6 +329,10 @@ These are capability boundaries only. OINK uses env-based key stubs for architec
 
 Public wallet addresses can be configured for diagnostics with `DEPLOY_WALLET_PUBLIC_KEY`, `TREASURY_WALLET_PUBLIC_KEY`, `FEE_WALLET_PUBLIC_KEY`, and `MONITORING_WALLET_PUBLIC_KEY`. OINK validates Solana public key format, warns when the same address is reused across roles, and only hard-fails wallet config when real launches are explicitly enabled.
 
+`DEPLOY_WALLET_PRIVATE_KEY` is optional and must only be configured in secured Railway env storage when live signing is intentionally tested later. It accepts a Solana 64-byte secret key as either a JSON byte array or base58 string. OINK never prints, logs, persists, or exposes the secret; diagnostics only report whether a key is present, whether the derived public key matches, and whether the hard safety gates are closed.
+
+Live deploy signing is refused unless all gates are open: `ENABLE_REAL_LAUNCHES=true`, `SIGNER_DISABLED=false`, `DEPLOY_WALLET_PRIVATE_KEY` exists, the derived public key matches `DEPLOY_WALLET_PUBLIC_KEY`, wallet role config is valid, and the signing role is `deploy_wallet`.
+
 The observation queue keeps dry-run launches reviewable before autonomy. Candidates can be queued, approved, rejected, expired, voted on for launch quality, and marked with `would_launch_again` calibration data.
 
 ## Local Commands
@@ -351,6 +355,7 @@ npm run test-shadow-launches
 npm run test-transaction-sim
 npm run test-wallet-architecture
 npm run test-wallet-config
+npm run test-private-signer-safety
 npm run test-observation-queue
 npm run test-x
 npm run dashboard

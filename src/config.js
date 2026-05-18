@@ -162,6 +162,7 @@ export const config = {
   },
   wallets: {
     signerDisabled: optionalBool("SIGNER_DISABLED", true),
+    deployPrivateKeyPresent: Boolean(optional("DEPLOY_WALLET_PRIVATE_KEY", "").trim()),
     deployPublicKey: walletPublicKeys.deploy_wallet,
     treasuryPublicKey: walletPublicKeys.treasury_wallet,
     feePublicKey: walletPublicKeys.fee_wallet,

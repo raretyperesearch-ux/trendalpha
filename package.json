@@ -21,6 +21,7 @@
     "test-transaction-sim": "node src/scripts/testTransactionSim.js",
     "test-wallet-architecture": "node src/scripts/testWalletArchitecture.js",
     "test-wallet-config": "node src/scripts/testWalletConfig.js",
+    "test-private-signer-safety": "node src/scripts/testPrivateSignerSafety.js",
     "test-observation-queue": "node src/scripts/testObservationQueue.js",
     "test-live-metadata-rules": "node src/scripts/testLiveMetadataRules.js",
     "test-metadata": "node src/scripts/testMetadataPipeline.js",
@@ -35,8 +36,9 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
-    "node-cron": "^3.0.3",
+    "dotenv": "^16.3.1",
     "grammy": "^1.21.0",
-    "dotenv": "^16.3.1"
+    "node-cron": "^3.0.3",
+    "tweetnacl": "^1.0.3"
   }
 }

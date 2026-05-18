@@ -1,4 +1,5 @@
 import { config } from "./config.js";
+import { getDeployPrivateSignerDiagnostics, signDeploymentPayload } from "./privateSigner.js";
 
 export const WALLET_ROLES = ["deploy_wallet", "treasury_wallet", "fee_wallet", "monitoring_wallet"];
 
@@ -24,12 +25,15 @@ export class SignerIsolationManager {
   getDiagnostics() {
     return WALLET_ROLES.map((role) => {
       const publicKeyDiagnostic = config.wallets.publicKeyDiagnostics.find((item) => item.role === role);
+      const privateSignerDiagnostics = role === "deploy_wallet" ? getDeployPrivateSignerDiagnostics() : null;
       return {
         role,
         publicKeyConfigured: Boolean(this.publicKeys[role]),
         publicKeyValid: Boolean(publicKeyDiagnostic?.valid),
         signerDisabled: this.disabled,
-        liveSignerReady: false,
+        liveSignerReady: Boolean(privateSignerDiagnostics?.liveSignerReady),
+        privateKeyPresent: Boolean(privateSignerDiagnostics?.privateKeyPresent),
+        publicKeyMatch: Boolean(privateSignerDiagnostics?.publicKeyMatch),
         warnings: publicKeyDiagnostic?.warnings || [],
         loaded: this.signers[role].loaded,
         capabilities: ROLE_CAPABILITIES[role],
@@ -64,6 +68,17 @@ export class SignerIsolationManager {
       signature: auth.allowed ? `dry-signature-${role}-${hashish(JSON.stringify(payload))}` : "",
       signed: auth.allowed,
     };
+  }
+
+  signDeployment({ role = "deploy_wallet", payload = {} } = {}) {
+    if (role !== "deploy_wallet") {
+      return {
+        signed: false,
+        role,
+        reason: "role_not_allowed_to_sign",
+      };
+    }
+    return signDeploymentPayload({ role, payload });
   }
 }
 
