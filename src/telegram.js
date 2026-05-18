@@ -681,14 +681,35 @@ export function formatDeploymentReadyAlert(deploymentAttempt) {
   const context = payload.launchContext || {};
   const validation = deploymentAttempt.validation || {};
   const pumpPortal = deploymentAttempt.pumpPortal || {};
+  const identity = payload.identity?.selected || {};
+  const metadataPreview = payload.finalMetadataPreview || {};
+  const finalGate = payload.finalLaunchGate || {};
 
   let msg = `🐷 <b>OINK DEPLOYMENT READY</b>\n\n`;
-  msg += `Ticker:\n<b>$${escapeHtml(deploymentAttempt.ticker || payload.token?.symbol || "OINK")}</b>\n\n`;
-  msg += `Launch Readiness:\n<b>${Number(context.launchReadiness || 0)}/100</b>\n\n`;
-  msg += `Identity Cohesion:\n<b>${Number(context.identityCohesion || 0)}/100</b>\n\n`;
+  msg += `<b>$${escapeHtml(deploymentAttempt.ticker || payload.token?.symbol || "OINK")}</b>\n`;
+  msg += `${escapeHtml(payload.token?.name || metadataPreview.name || "OINK Market")}\n`;
+  msg += `Status: <b>${escapeHtml(formatLabel(deploymentAttempt.deploymentState || "payload_ready"))}</b>\n`;
+  if (metadataPreview.sourceBacklink) {
+    msg += `Source: <a href="${escapeHtml(safeTelegramUrl(metadataPreview.sourceBacklink, "https://x.com"))}">link</a>\n`;
+  }
+  msg += `\n`;
+  msg += `Launch Readiness: <b>${Number(context.launchReadiness || 0)}/100</b>\n`;
+  msg += `Identity Cohesion: <b>${Number(context.identityCohesion || identity.identityCohesionScore || 0)}/100</b>\n`;
+  msg += `Naming Quality: <b>${Number(identity.namingQualityScore || 0)}/100</b>\n`;
+  msg += `Ticker Quality: <b>${Number(identity.tickerQualityScore || 0)}/100</b>\n\n`;
   msg += `Deployment Status:\n<b>${escapeHtml(formatLabel(deploymentAttempt.deploymentState || "payload_ready"))}</b>\n\n`;
   msg += `PumpPortal:\n<b>${pumpPortal.connected ? "CONNECTED" : "OFFLINE"}</b>\n\n`;
   msg += `Mode:\n<b>${escapeHtml(deploymentAttempt.mode || "DRY_WIRE")}</b>\n\n`;
+  msg += `<b>Final Metadata Preview:</b>\n`;
+  msg += `<code>`;
+  msg += `name: ${metadataPreview.name || payload.token?.name || "n/a"}\n`;
+  msg += `symbol: ${metadataPreview.symbol || deploymentAttempt.ticker || "n/a"}\n`;
+  msg += `description: ${(metadataPreview.description || payload.token?.description || "n/a").slice(0, 88)}\n`;
+  msg += `image URL: ${metadataPreview.imageUrl || payload.metadata?.image || "n/a"}\n`;
+  msg += `metadata URL: ${metadataPreview.metadataUrl || payload.metadata?.hostedMetadataUrl || "n/a"}\n`;
+  msg += `source backlink: ${metadataPreview.sourceBacklink || payload.metadata?.sourceBacklink || "n/a"}\n`;
+  msg += `slogan fragments: ${(metadataPreview.sloganFragments || payload.metadata?.sloganFragments || []).join(" | ") || "n/a"}`;
+  msg += `</code>\n\n`;
   msg += `<code>`;
   msg += `Name:       ${payload.token?.name || "n/a"}\n`;
   msg += `Phase:      ${context.narrativePhase || "forming"}\n`;
@@ -696,9 +717,16 @@ export function formatDeploymentReadyAlert(deploymentAttempt) {
   msg += `Artifact:   ${payload.metadata?.sourceArtifactType || "symbolic_artifact"}\n`;
   msg += `Image:      ${payload.metadata?.imageUpload?.validationStatus || "image_needed"}\n`;
   msg += `Img Source: ${payload.metadata?.imageUpload?.imageSource || "GENERATED FALLBACK"}\n`;
+  msg += `Img Label:  ${payload.metadata?.imageUpload?.imageQualityReview?.qualityLabel || payload.metadata?.imageQualityLabel || "UNKNOWN"}\n`;
   msg += `Metadata:   ${payload.metadataState || "draft"}\n`;
+  msg += `Final Gate: ${finalGate.readyForFutureLiveLaunch ? "ready" : "blocked"}\n`;
   msg += `Valid:      ${validation.valid ? "yes" : "no"}`;
   msg += `</code>\n\n`;
+  if (finalGate.blocks?.length) {
+    msg += `<b>Final Gate Blocks:</b>\n`;
+    for (const block of finalGate.blocks.slice(0, 5)) msg += `• ${escapeHtml(block)}\n`;
+    msg += `\n`;
+  }
   if (validation.errors?.length) {
     msg += `<b>Validation Errors:</b>\n`;
     for (const error of validation.errors.slice(0, 5)) msg += `• ${escapeHtml(error)}\n`;
@@ -1083,29 +1111,35 @@ export function formatLaunchCreatedAlert({ trend, launchBrief, launchedToken, fe
     : `$${launchedToken.ticker}`;
 
   let msg = `🐷 <b>OINK MARKET CREATED</b>\n\n`;
-  msg += `Source: <b>${escapeHtml(getSourceLabel(trend))}</b>\n`;
-  if (trend.sourcePlatform === "x") {
-    msg += `Original Viral Tweet: <a href="${escapeHtml(safeTelegramUrl(launchBrief.sourceUrl, "https://x.com"))}">link</a>\n\n`;
-    msg += `<b>X Narrative Tag:</b>\n`;
-    msg += `${escapeHtml(launchBrief.socialTag || "#OINKLaunch")}\n\n`;
-  } else {
-    msg += `Original Source: <a href="${escapeHtml(safeTelegramUrl(launchBrief.sourceUrl, "https://www.tiktok.com"))}">link</a>\n\n`;
-  }
-
-  msg += `<b>Market:</b>\n`;
-  msg += `${escapeHtml(launchedToken.name)} (${escapeHtml(ticker)})\n\n`;
-  msg += `<b>Contract:</b>\n`;
+  msg += `<b>${escapeHtml(ticker)}</b>\n`;
+  msg += `${escapeHtml(launchedToken.name)}\n\n`;
+  msg += `Source:\n<b>${escapeHtml(getSourceLabel(trend))}</b>\n\n`;
+  msg += `<b>Why It Launched:</b>\n`;
+  const reasons = launchedToken.launchReasons || launchBrief.launchReasons || [
+    "cross-community spread",
+    "launch window prime",
+    "identity cohesion high",
+  ];
+  for (const reason of reasons.slice(0, 3)) msg += `• ${escapeHtml(reason)}\n`;
+  msg += `\n`;
+  msg += `Market:\n<b>${escapeHtml(launchedToken.platform || "Pump.fun / PumpPortal")}</b>\n\n`;
+  msg += `CA:\n`;
   msg += `<code>${escapeHtml(launchedToken.contractAddress || "pending")}</code>\n\n`;
-  msg += `<b>Launch:</b>\n`;
+  msg += `Source Post:\n`;
+  msg += `<a href="${escapeHtml(safeTelegramUrl(launchBrief.sourceUrl || trend.sourceUrl, trend.sourcePlatform === "x" ? "https://x.com" : "https://www.tiktok.com"))}">link</a>\n\n`;
+  msg += `Image:\n<b>${escapeHtml(launchedToken.imageSource || launchBrief.imageSource || "SOURCE POST MEDIA / GENERATED")}</b>\n\n`;
+  msg += `OINK Buyback Route:\n<b>${escapeHtml(launchedToken.buybackRoute || "pending")}</b>\n\n`;
+  if (trend.sourcePlatform === "x" && launchBrief.socialTag) {
+    msg += `X Narrative Tag:\n${escapeHtml(launchBrief.socialTag)}\n\n`;
+  }
+  msg += `Launch:\n`;
   if (launchedToken.launchUrl) {
     msg += `<a href="${escapeHtml(safeTelegramUrl(launchedToken.launchUrl, "https://pump.fun"))}">${escapeHtml(launchedToken.platform || "launch link")}</a>\n\n`;
   } else {
     msg += `${escapeHtml(launchedToken.platform || "pending")}\n\n`;
   }
-  msg += `<b>Flywheel:</b>\n`;
-  msg += `Launch Fees → $OINK Buybacks\n`;
+  msg += `Flywheel:\nLaunch Fees → $OINK Buybacks\n`;
   if (feeSummary) msg += `${escapeHtml(feeSummary)}\n`;
-  msg += `\nThis market was created from viral internet attention detected by OINK.`;
 
   return constrainTelegramMessage(msg);
 }

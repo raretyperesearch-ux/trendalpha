@@ -1,3 +1,5 @@
+import { selectMemeticIdentity } from "../memeticNameEngine.js";
+
 const WEAK_TICKER_WORDS = new Set([
   "the", "this", "that", "viral", "meme", "coin", "token", "pump", "fun",
   "inu", "ai", "official", "real", "new", "launch", "trend", "x",
@@ -11,8 +13,10 @@ export class DryRunPumpPortalProvider {
   }
 
   prepareClusterLaunch(cluster) {
-    const title = buildTokenName(cluster);
-    const ticker = this.generateTicker(cluster, title);
+    const identity = selectMemeticIdentity(cluster, { existingTickers: [...this.existingTickers] });
+    const title = identity.selected?.name || buildTokenName(cluster);
+    const ticker = identity.selected?.ticker || this.generateTicker(cluster, title);
+    this.existingTickers.add(ticker);
     const narrativeSummary = buildNarrativeSummary(cluster);
     const launchReasoning = buildLaunchReasoning(cluster);
     const launchConfidence = getLaunchConfidence(cluster);
@@ -43,6 +47,7 @@ export class DryRunPumpPortalProvider {
         ticker,
         description: buildPumpDescription({ title, ticker, narrativeSummary, cluster }),
       },
+      identity,
       narrative: {
         clusterId: cluster.clusterId,
         clusterName: cluster.canonicalEntity,
@@ -68,7 +73,7 @@ export class DryRunPumpPortalProvider {
         telegram: buildTelegramDraft({ title, ticker, cluster }),
         pumpfunDescription: buildPumpDescription({ title, ticker, narrativeSummary, cluster }),
       },
-      audit: buildAudit(cluster, ticker),
+      audit: buildAudit(cluster, ticker, identity),
       note: "Dry run only. No transaction submitted. No wallet used.",
       createdAt: new Date().toISOString(),
     };
@@ -82,6 +87,7 @@ export class DryRunPumpPortalProvider {
       narrativePhase: payload.narrative.phase,
       swarmPressure: payload.narrative.swarmPressure,
       identityStrength: payload.narrative.identityStrength,
+      identity,
       launchReasoning,
       payload,
     };
@@ -274,15 +280,18 @@ function getRelatedPostReferences(cluster) {
   }));
 }
 
-function buildAudit(cluster, ticker) {
+function buildAudit(cluster, ticker, identity = null) {
   const rejected = [];
   if ((cluster.launchReadiness || 0) < 70) rejected.push("launch_readiness_below_dry_run_threshold");
   if ((cluster.swarmPressure || 0) >= 60) rejected.push("high_swarm_pressure");
   if ((cluster.saturationPressure || 0) >= 70) rejected.push("saturation_rejection");
   if (!isStrongTicker(ticker)) rejected.push("weak_ticker");
+  if (identity && !identity.ready) rejected.push(identity.blockReason || "identity_quality_below_threshold");
   return {
     rejectedLaunches: rejected,
     weakIdentity: getIdentityStrength(cluster) < 45,
+    identityRejected: identity && !identity.ready,
+    identityRejectionReason: identity && !identity.ready ? identity.blockReason : "",
     saturationRejection: (cluster.saturationPressure || 0) >= 70,
     launchTimingWindow: cluster.launchWindow || "WATCH",
     tickerCollision: false,

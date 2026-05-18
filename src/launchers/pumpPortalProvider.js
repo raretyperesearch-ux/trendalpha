@@ -51,10 +51,12 @@ export class PumpPortalProvider extends LaunchAdapter {
         ...metadataPipeline.metadata,
         imagePrompt: payload.metadata.imagePrompt,
         imageUpload: metadataPipeline.imageAsset,
+        imageQualityLabel: metadataPipeline.imageAsset.visualScore?.thumbnailStrengthLabel || labelScore(metadataPipeline.imageAsset.qualityScore),
       },
       metadataState: metadataPipeline.state,
       metadataValidation: metadataPipeline.validation,
     };
+    payload.finalLaunchGate = this.evaluateFinalLaunchGate(payload, { hosted: false });
     auditLog.push(audit("metadata_pipeline", metadataPipeline.state, metadataPipeline.validation.valid ? "Metadata is ready" : metadataPipeline.validation.errors.join("; ")));
     auditLog.push(audit("image_artifact_preparation", metadataPipeline.imageAsset.validationStatus, payload.metadata.imagePrompt ? "Image asset pipeline completed" : "Image prompt missing"));
 
@@ -158,6 +160,7 @@ export class PumpPortalProvider extends LaunchAdapter {
         launchTiming: source.launchTiming || {},
         launchReasoning: shadowLaunch.launchReasoning || source.launchReasoning || [],
       },
+      identity: source.identity || shadowLaunch.identity || {},
       transaction: {
         status: "not_prepared",
         note: "Transaction preparation placeholder only. No signing, wallet, private key, or broadcast.",
@@ -180,6 +183,8 @@ export class PumpPortalProvider extends LaunchAdapter {
     if (!payload.metadata.imagePrompt) errors.push("image_prompt_missing");
     if (payload.metadataValidation && !payload.metadataValidation.valid) errors.push("metadata_validation_failed");
     if (payload.metadata?.imageUpload?.validation && !payload.metadata.imageUpload.validation.valid) errors.push("image_asset_validation_failed");
+    const identityGate = validateIdentityQuality(payload.identity);
+    if (!identityGate.valid) errors.push("identity_quality_below_threshold");
     if (readiness < config.launch.deploymentMinReadiness) errors.push("launch_readiness_below_threshold");
     if (swarmPressure > config.launch.deploymentMaxSwarmPressure) errors.push("swarm_pressure_above_threshold");
     if (payload.metadata.artifactStrength < 45) warnings.push("artifact_strength_low");
@@ -197,6 +202,41 @@ export class PumpPortalProvider extends LaunchAdapter {
         launchReadiness: readiness,
         swarmPressure,
         imagePromptPresent: Boolean(payload.metadata.imagePrompt),
+        identity: identityGate,
+      },
+    };
+  }
+
+  evaluateFinalLaunchGate(payload, { hosted = false, signerDiagnostics = [] } = {}) {
+    const identityGate = validateIdentityQuality(payload.identity);
+    const metadataReady = payload.metadataState === "metadata_ready" && payload.metadataValidation?.valid !== false;
+    const asset = payload.metadata?.imageUpload || {};
+    const assetHosted = hosted || Boolean(asset.uploadedImageUrl || asset.metadataUrl || payload.metadata?.hostedMetadataUrl);
+    const walletConfigValid = config.wallets.publicKeyDiagnostics.every((item) => item.configured && item.valid && item.warnings.length === 0);
+    const liveSignerReady = signerDiagnostics.some((item) => item.role === "deploy_wallet" && item.liveSignerReady);
+    const signerSafe = config.wallets.signerDisabled || liveSignerReady;
+    const saturationPassed = Number(payload.launchContext?.swarmPressure || 0) <= config.launch.deploymentMaxSwarmPressure;
+    const txSimulationSuccess = payload.transactionSimulation?.status === "success";
+    const blocks = [];
+    if (!identityGate.valid) blocks.push("identity_not_ready");
+    if (!metadataReady) blocks.push("metadata_not_ready");
+    if (!assetHosted) blocks.push("asset_not_hosted");
+    if (!walletConfigValid) blocks.push("wallet_config_invalid");
+    if (!signerSafe) blocks.push("signer_not_safe");
+    if (!saturationPassed) blocks.push("saturation_safety_failed");
+    if (!txSimulationSuccess) blocks.push("transaction_simulation_not_success");
+    return {
+      readyForFutureLiveLaunch: blocks.length === 0,
+      blocks,
+      checks: {
+        identityReady: identityGate.valid,
+        metadataReady,
+        assetHosted,
+        walletConfigValid,
+        signerDisabled: config.wallets.signerDisabled,
+        liveSignerReady,
+        saturationPassed,
+        txSimulationSuccess,
       },
     };
   }
@@ -327,6 +367,28 @@ function normalizeTicker(value = "") {
 
 function safeText(value = "", maxLength = 255) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
+function validateIdentityQuality(identity = {}) {
+  const selected = identity.selected || {};
+  const checks = {
+    tickerQualityScore: Number(selected.tickerQualityScore || 0),
+    namingQualityScore: Number(selected.namingQualityScore || 0),
+    identityCohesionScore: Number(selected.identityCohesionScore || 0),
+  };
+  const valid = checks.tickerQualityScore >= 75 && checks.namingQualityScore >= 75 && checks.identityCohesionScore >= 75;
+  return {
+    valid,
+    checks,
+    blockReason: valid ? "" : "identity_quality_below_threshold",
+  };
+}
+
+function labelScore(score) {
+  const value = Number(score || 0);
+  if (value >= 80) return "HIGH";
+  if (value >= 60) return "MEDIUM";
+  return "LOW";
 }
 
 function buildAttemptId(shadowLaunch, payload) {

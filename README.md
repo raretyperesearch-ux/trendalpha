@@ -160,6 +160,8 @@ OINK can prepare PumpPortal-style deployment metadata without broadcasting a tra
 
 Ticker generation is intentionally conservative. OINK prefers short identity-centric tickers and rejects weak or polluted patterns such as generic meme suffixes, duplicate tickers, and stuffed `AIINU`-style symbols.
 
+The final naming pass uses a Memetic Name Engine. Each dry-run launch gets multiple name/ticker candidates scored for phonetics, meme compression, uniqueness, literalness, spam risk, ticker quality, naming quality, and identity cohesion. Launch prep is blocked with `identity_quality_below_threshold` if the selected identity does not clear OINK's final quality gates.
+
 Dry-run launch records are stored in `shadow_launches` when the Supabase migration is applied. If that table is missing, OINK falls back to `trend_snapshots` so scans keep running. These records are simulation artifacts only.
 
 ## PumpPortal Deployment Skeleton

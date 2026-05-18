@@ -40,7 +40,25 @@ async function loadMissionControlData() {
         { cluster_id: "cluster-spot", cluster_name: "Spotghost", narrative_phase: "accelerating", launch_readiness: 82, swarm_pressure: 22, identity_strength: 88, persistence_score: 80 },
       ],
       shadowLaunches: [
-        { launch_id: "dry-cluster-banana-BANANA", ticker: "BANANA", title: "Banana Dog", launch_readiness: 86, narrative_phase: "forming", swarm_pressure: 18 },
+        {
+          launch_id: "dry-cluster-banana-BANANA",
+          ticker: "BANANA",
+          title: "Banana Dog",
+          launch_readiness: 86,
+          narrative_phase: "forming",
+          swarm_pressure: 18,
+          payload: {
+            identity: {
+              selected: { name: "Banana Dog", ticker: "BANANA", reason: "easy to say, meme-compressed", tickerQualityScore: 88, namingQualityScore: 82, identityCohesionScore: 91 },
+              candidates: [
+                { name: "Banana Dog", ticker: "BANANA", reason: "easy to say, meme-compressed", totalScore: 87 },
+                { name: "Nanadog", ticker: "NANADOG", reason: "strange but readable", totalScore: 83 },
+              ],
+              blockReason: "",
+            },
+            metadata: { imageUpload: { imageSource: "SOURCE POST MEDIA" } },
+          },
+        },
       ],
       deployments: [
         { attempt_id: "deploy-cluster-banana", ticker: "BANANA", deployment_state: "deployment_prepared", failure_class: "", mode: "DRY_WIRE", state_timeline: [], observation_state: "queued_for_review", simulation_result: { status: "success", failureRisk: "LOW" } },
@@ -105,14 +123,20 @@ function renderMissionControl({ source, clusters, shadowLaunches, deployments, e
     </section>
     <section class="panel">
       <h2>Shadow Launches & Identity Previews</h2>
-      ${table(["Preview", "Ticker", "Title", "Readiness", "Ticker Quality", "Saturation"], shadowLaunches.map((s) => [
+      ${table(["Preview", "Ticker", "Title", "Readiness", "Ticker Quality", "Saturation", "Winner", "Rejected"], shadowLaunches.map((s) => [
         `<div class="preview">${escapeHtml(String(s.ticker || "?").slice(0, 2))}</div>`,
         `$${s.ticker || "OINK"}`,
         s.title || s.cluster_id,
         `${s.launch_readiness || 0}/100`,
         scoreTicker(s.ticker),
         `${s.swarm_pressure || 0}/100`,
+        renderIdentityWinner(s),
+        renderRejectedIdentityReasons(s),
       ]))}
+    </section>
+    <section class="panel">
+      <h2>Identity + Metadata Preview</h2>
+      ${shadowLaunches.map(renderIdentityPreview).join("") || "<p class=\"muted\">No shadow launch identities yet.</p>"}
     </section>
     <section class="panel">
       <h2>Deployment Timeline</h2>
@@ -134,6 +158,48 @@ function renderDeployment(d) {
   const timeline = Array.isArray(d.state_timeline) ? d.state_timeline : [];
   const steps = timeline.length ? timeline.map((item) => item.to || item).slice(-12) : [d.deployment_state || "payload_ready"];
   return `<div style="margin-top:12px"><b>$${escapeHtml(d.ticker || "OINK")}</b> <span class="muted">${escapeHtml(d.attempt_id || "")}</span><div class="timeline">${steps.map((s) => `<span class="step">${escapeHtml(s)}</span>`).join("")}</div></div>`;
+}
+
+function renderIdentityPreview(s) {
+  const payload = s.payload || {};
+  const identity = payload.identity || {};
+  const selected = identity.selected || {};
+  const candidates = identity.candidates || [];
+  const image = payload.metadata?.imageUpload || {};
+  const metadata = payload.finalMetadataPreview || payload.metadata || {};
+  return `<div style="margin-top:14px">
+    <h3 style="margin:0 0 8px 0">$${escapeHtml(selected.ticker || s.ticker || "OINK")} ${escapeHtml(selected.name || s.title || "")}</h3>
+    <p class="muted">Selected: ${escapeHtml(selected.reason || "pending")} | Visual: ${escapeHtml(image.imageSource || "not selected")}</p>
+    ${table(["Name", "Ticker", "Reason", "Score"], candidates.slice(0, 8).map((c) => [
+      c.name || "",
+      `$${c.ticker || ""}`,
+      c.reason || "",
+      `${c.totalScore || c.tickerQualityScore || 0}/100`,
+    ]))}
+    <pre>${escapeHtml(JSON.stringify({
+      finalImageUrl: metadata.imageUrl || metadata.image || "",
+      metadataUrl: metadata.metadataUrl || metadata.hostedMetadataUrl || "",
+      sourceBacklink: metadata.sourceBacklink || "",
+      sloganFragments: metadata.sloganFragments || [],
+    }, null, 2))}</pre>
+  </div>`;
+}
+
+function renderIdentityWinner(s) {
+  const selected = s.payload?.identity?.selected || {};
+  if (!selected.ticker && !selected.name) return "pending";
+  return `${selected.name || s.title} ($${selected.ticker || s.ticker})`;
+}
+
+function renderRejectedIdentityReasons(s) {
+  const identity = s.payload?.identity || {};
+  const selectedTicker = identity.selected?.ticker;
+  const rejected = (identity.candidates || [])
+    .filter((candidate) => candidate.ticker !== selectedTicker)
+    .slice(0, 3)
+    .map((candidate) => `${candidate.ticker}: ${candidate.spamPenalty ? "spam penalty" : candidate.literalnessPenalty ? "too literal" : "lower score"}`);
+  if (identity.blockReason) rejected.unshift(identity.blockReason);
+  return rejected.join("; ") || "none";
 }
 
 function table(headers, rows) {

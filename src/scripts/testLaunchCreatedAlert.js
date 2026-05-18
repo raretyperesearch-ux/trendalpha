@@ -12,6 +12,8 @@ const launchBrief = {
   sourcePlatform: "x",
   sourceUrl: trend.sourceUrl,
   socialTag: "#BananaDog",
+  imageSource: "SOURCE POST MEDIA",
+  launchReasons: ["cross-community spread", "launch window prime", "identity cohesion high"],
 };
 
 const launchedToken = {
@@ -20,6 +22,8 @@ const launchedToken = {
   contractAddress: "So11111111111111111111111111111111111111112",
   launchUrl: "https://pump.fun/example",
   platform: "pump.fun",
+  imageSource: "SOURCE POST MEDIA",
+  buybackRoute: "pending",
 };
 
 if (shouldSend) {

@@ -50,6 +50,7 @@ export async function prepareAndPersistDeploymentAttempt(shadowLaunch, {
       deploymentAttempt.payload.metadata.image = hostedMetadata.metadataJson.image;
       deploymentAttempt.payload.metadata.hostedMetadataUrl = hostedMetadata.metadataUpload?.metadataUrl || "";
       deploymentAttempt.payload.metadata.imageUpload = hostedMetadata.launchAsset;
+      deploymentAttempt.payload.finalMetadataPreview = buildFinalMetadataPreview(deploymentAttempt, hostedMetadata);
       if (machine.state !== "failed") machine.transition("assets_hosted", { reason: "hosted_assets_ready" });
     } else if (machine.state !== "failed") {
       machine.fail("metadata_failure", "Hosted metadata validation failed", { errors: hostedMetadata.metadataValidation.errors });
@@ -65,6 +66,7 @@ export async function prepareAndPersistDeploymentAttempt(shadowLaunch, {
   deploymentAttempt.signatureSimulation = signature;
   deploymentAttempt.simulationResult = simulateTransaction(deploymentAttempt, { scenario: "success" });
   deploymentAttempt.payload.transactionSimulation = deploymentAttempt.simulationResult;
+  deploymentAttempt.payload.finalLaunchGate = evaluateFinalLaunchGate(deploymentAttempt);
   const queue = createLaunchObservationQueue();
   const observation = queue.enqueue(shadowLaunch, deploymentAttempt);
   deploymentAttempt.observationState = observation.state;
@@ -92,6 +94,54 @@ export async function prepareAndPersistDeploymentAttempt(shadowLaunch, {
   }
 
   return deploymentAttempt;
+}
+
+function buildFinalMetadataPreview(deploymentAttempt, hostedMetadata) {
+  const metadata = hostedMetadata.metadataJson || deploymentAttempt.payload?.metadata || {};
+  return {
+    name: metadata.name || deploymentAttempt.payload?.token?.name || "",
+    symbol: metadata.symbol || deploymentAttempt.ticker || "",
+    description: metadata.description || deploymentAttempt.payload?.token?.description || "",
+    imageUrl: metadata.image || "",
+    metadataUrl: hostedMetadata.metadataUpload?.metadataUrl || "",
+    sourceBacklink: metadata.oink?.sourceBacklink || deploymentAttempt.payload?.metadata?.sourceBacklink || "",
+    sloganFragments: metadata.oink?.sloganFragments || deploymentAttempt.payload?.metadata?.sloganFragments || [],
+  };
+}
+
+function evaluateFinalLaunchGate(deploymentAttempt) {
+  const payload = deploymentAttempt.payload || {};
+  const identity = payload.identity?.selected || {};
+  const asset = payload.metadata?.imageUpload || {};
+  const walletConfigValid = (deploymentAttempt.walletDiagnostics || []).every((item) =>
+    item.publicKeyConfigured && item.publicKeyValid && item.warnings.length === 0
+  );
+  const liveSignerReady = (deploymentAttempt.walletDiagnostics || []).some((item) => item.role === "deploy_wallet" && item.liveSignerReady);
+  const blocks = [];
+  if (Number(identity.tickerQualityScore || 0) < 75 || Number(identity.namingQualityScore || 0) < 75 || Number(identity.identityCohesionScore || 0) < 75) {
+    blocks.push("identity_not_ready");
+  }
+  if (payload.metadataState !== "metadata_ready" || payload.metadataValidation?.valid === false) blocks.push("metadata_not_ready");
+  if (!asset.uploadedImageUrl && !asset.metadataUrl) blocks.push("asset_not_hosted");
+  if (!walletConfigValid) blocks.push("wallet_config_invalid");
+  if (!asset.validationStatus || asset.assetType === "placeholder") blocks.push("image_not_launch_ready");
+  if (!deploymentAttempt.saturationSafety?.allowed) blocks.push("saturation_safety_failed");
+  if (deploymentAttempt.simulationResult?.status !== "success") blocks.push("transaction_simulation_not_success");
+  if (!payload.finalMetadataPreview?.imageUrl || !payload.finalMetadataPreview?.metadataUrl) blocks.push("metadata_preview_incomplete");
+  return {
+    readyForFutureLiveLaunch: blocks.length === 0,
+    blocks,
+    checks: {
+      identityReady: !blocks.includes("identity_not_ready"),
+      metadataReady: !blocks.includes("metadata_not_ready"),
+      assetHosted: !blocks.includes("asset_not_hosted"),
+      walletConfigValid,
+      signerDisabled: (deploymentAttempt.walletDiagnostics || []).every((item) => item.signerDisabled),
+      liveSignerReady,
+      saturationSafetyPassed: !blocks.includes("saturation_safety_failed"),
+      transactionSimulationSuccess: !blocks.includes("transaction_simulation_not_success"),
+    },
+  };
 }
 
 async function prepareHostedMetadataForAttempt(deploymentAttempt) {
