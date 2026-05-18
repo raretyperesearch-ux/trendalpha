@@ -888,6 +888,9 @@ export function formatDryRunLaunchAlert(shadowLaunch) {
   const narrative = payload.narrative || {};
   const timing = payload.launchTiming || {};
   const isTikTok = payload.sourcePlatform === "tiktok";
+  const sourceLabel = payload.sourcePlatform === "x" ? "X" : payload.sourcePlatform === "tiktok" ? "TikTok" : formatLabel(payload.sourcePlatform || "memory");
+  const sourceUrl = payload.sourceUrl || payload.sourceBacklink || payload.relatedPosts?.[0]?.sourceUrl || "";
+  const sourceAuthor = payload.sourceAuthor || payload.relatedPosts?.[0]?.author || "";
   const imageSource = payload.metadata?.imageUpload?.imageSource ||
     (payload.sourceMediaType === "cover_image"
       ? "TIKTOK COVER"
@@ -898,9 +901,15 @@ export function formatDryRunLaunchAlert(shadowLaunch) {
   let msg = `🐷 <b>OINK PREPARE LAUNCH</b>\n\n`;
   msg += `<b>$${escapeHtml(shadowLaunch.ticker)}</b>\n`;
   msg += `${escapeHtml(shadowLaunch.title)}\n\n`;
+  msg += `Source:\n<b>${escapeHtml(sourceLabel)}</b>\n`;
+  if (sourceAuthor) msg += `Author:\n@${escapeHtml(sourceAuthor)}\n`;
+  if (sourceUrl) {
+    const fallback = payload.sourcePlatform === "tiktok" ? "https://www.tiktok.com" : payload.sourcePlatform === "x" ? "https://x.com" : "https://oink.bot";
+    msg += `Source Post:\n<a href="${escapeHtml(safeTelegramUrl(sourceUrl, fallback))}">link</a>\n`;
+  }
+  msg += `\n`;
   if (isTikTok) {
     const tiktokTrendName = payload.relatedPosts?.[0]?.name || narrative.clusterName || shadowLaunch.title;
-    msg += `Source:\n<b>TikTok</b>\n\n`;
     msg += `Trend:\n<b>${escapeHtml(tiktokTrendName)}</b>\n\n`;
     msg += `Image:\n<b>${escapeHtml(imageSource)}</b>\n\n`;
     msg += `<b>Why It Qualified:</b>\n`;
@@ -1008,7 +1017,7 @@ export function formatNarrativeMemoryDebug({ cluster, analytics = {} }) {
   return constrainTelegramMessage(msg);
 }
 
-function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBrief, preparedLaunch, mode = "rich" }) {
+export function formatLaunchCandidateMessage({ trend, trendScore, launchScore, launchBrief, preparedLaunch, mode = "rich" }) {
   const reasons = launchScore.reasons?.length
     ? launchScore.reasons.slice(0, 3)
     : ["Attention velocity cleared OINK launch review.", "Market formation appears early.", "Trend is suitable for candidate preparation."];
@@ -1218,6 +1227,7 @@ export function formatLaunchCreatedAlert({ trend, launchBrief, launchedToken, fe
 
 function sanitizePublicFlywheelText(value = "") {
   return String(value || "")
+    .replace(/\bcurrent model\s*:\s*/gi, "")
     .replace(/\b\d+(?:\.\d+)?%\s*(?:buybacks?|treasury|ops|operations?)\b/gi, (match) => match.replace(/\d+(?:\.\d+)?%\s*/g, ""))
     .replace(/\b\d+(?:\.\d+)?%\b/g, "")
     .replace(/\s*,\s*,/g, ",")

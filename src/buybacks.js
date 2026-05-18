@@ -6,5 +6,5 @@ export const BUYBACK_CONFIG = {
 };
 
 export function getBuybackSummary() {
-  return "Autonomous launch fees flow back into $OINK buybacks, treasury growth, and operations.";
+  return "Autonomous launch fees route back toward $OINK buybacks.";
 }

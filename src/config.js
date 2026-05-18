@@ -253,5 +253,8 @@ export const config = {
     maxPostAgeHours: optionalInt("X_MAX_POST_AGE_HOURS", "12"),
     maxStrongPostAgeHours: optionalInt("X_MAX_STRONG_POST_AGE_HOURS", "48"),
     resultsPerQuery: optionalInt("X_RESULTS_PER_QUERY", "25"),
+    scanIntervalMinutes: optionalInt("X_SCAN_INTERVAL_MINUTES", "60"),
+    cacheTtlMinutes: optionalInt("X_CACHE_TTL_MINUTES", "60"),
+    maxRequestsPerDay: optionalInt("X_MAX_REQUESTS_PER_DAY", "500"),
   },
 };

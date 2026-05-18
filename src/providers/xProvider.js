@@ -61,10 +61,30 @@ const MINIMAL_TWEET_FIELDS = [
   "lang",
 ];
 
+let xCache = {
+  posts: [],
+  fetchedAt: 0,
+};
+
+let xRequestBudget = {
+  date: getUtcDateKey(),
+  count: 0,
+};
+
 export async function fetchXAttention() {
   if (!config.x.bearerToken) {
     console.log("   ⚠️  X provider enabled but X_BEARER_TOKEN is missing");
     return [];
+  }
+
+  const throttle = getXThrottleDecision();
+  if (!throttle.shouldFetch) {
+    if (throttle.reason === "budget_exceeded") {
+      console.warn("   ⚠️  X request budget exceeded; reusing cache if available");
+    } else {
+      console.log("   X cache reused");
+    }
+    return cloneCachedPosts();
   }
 
   const querySources = config.x.searchQueries.length > 0
@@ -147,7 +167,45 @@ export async function fetchXAttention() {
     }
   }
 
-  return posts.sort((a, b) => (b.attentionShapeScore || 0) - (a.attentionShapeScore || 0));
+  const sorted = posts.sort((a, b) => (b.attentionShapeScore || 0) - (a.attentionShapeScore || 0));
+  xCache = {
+    posts: sorted,
+    fetchedAt: Date.now(),
+  };
+  return cloneCachedPosts();
+}
+
+export function getXThrottleDecision(now = Date.now()) {
+  resetXBudgetIfNeeded(now);
+  const cacheAgeMs = now - Number(xCache.fetchedAt || 0);
+  const hasCache = xCache.posts.length > 0;
+  const cacheTtlMs = minutesToMs(config.x.cacheTtlMinutes);
+  const scanIntervalMs = minutesToMs(config.x.scanIntervalMinutes);
+  const cacheFresh = hasCache && cacheAgeMs < cacheTtlMs;
+  const scanThrottled = hasCache && cacheAgeMs < scanIntervalMs;
+
+  if (Number(config.x.maxRequestsPerDay || 0) > 0 && xRequestBudget.count >= config.x.maxRequestsPerDay) {
+    return { shouldFetch: false, reason: "budget_exceeded", cacheAgeMs, requestCount: xRequestBudget.count };
+  }
+  if (cacheFresh || scanThrottled) {
+    return { shouldFetch: false, reason: "cache_fresh", cacheAgeMs, requestCount: xRequestBudget.count };
+  }
+  return { shouldFetch: true, reason: "cache_stale", cacheAgeMs, requestCount: xRequestBudget.count };
+}
+
+export function resetXThrottleState({ posts = [], fetchedAt = 0, requestCount = 0, date = getUtcDateKey() } = {}) {
+  xCache = { posts, fetchedAt };
+  xRequestBudget = { date, count: requestCount };
+}
+
+export function getXThrottleState() {
+  resetXBudgetIfNeeded();
+  return {
+    cachedPosts: xCache.posts.length,
+    fetchedAt: xCache.fetchedAt,
+    requestCount: xRequestBudget.count,
+    date: xRequestBudget.date,
+  };
 }
 
 export function sanitizeXQuery(query) {
@@ -279,6 +337,9 @@ async function searchRecent(query) {
 }
 
 async function requestRecentSearch(query, attempt) {
+  if (!consumeXRequestBudget()) {
+    throw new Error("x_request_budget_exceeded");
+  }
   const params = new URLSearchParams({
     query,
     max_results: String(clamp(config.x.resultsPerQuery, 10, 100)),
@@ -303,6 +364,32 @@ async function requestRecentSearch(query, attempt) {
   }
 
   return body;
+}
+
+function cloneCachedPosts() {
+  return xCache.posts.map((post) => ({ ...post, riskFlags: [...(post.riskFlags || [])] }));
+}
+
+function consumeXRequestBudget(now = Date.now()) {
+  resetXBudgetIfNeeded(now);
+  if (Number(config.x.maxRequestsPerDay || 0) > 0 && xRequestBudget.count >= config.x.maxRequestsPerDay) return false;
+  xRequestBudget.count += 1;
+  return true;
+}
+
+function resetXBudgetIfNeeded(now = Date.now()) {
+  const today = getUtcDateKey(now);
+  if (xRequestBudget.date !== today) {
+    xRequestBudget = { date: today, count: 0 };
+  }
+}
+
+function getUtcDateKey(now = Date.now()) {
+  return new Date(now).toISOString().slice(0, 10);
+}
+
+function minutesToMs(value) {
+  return Math.max(0, Number(value || 0)) * 60 * 1000;
 }
 
 function normalizeTweet(tweet, usersById, mediaByKey, queryLane = "broad_media_stream") {

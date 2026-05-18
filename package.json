@@ -42,8 +42,10 @@
     "test-buyback-routing": "node src/scripts/testBuybackRouting.js",
     "test-source-media": "node src/scripts/testSourceMedia.js",
     "test-telegram-alert": "node src/scripts/testTelegramAlert.js",
+    "test-telegram-buyback-copy": "node src/scripts/testTelegramBuybackCopy.js",
     "test-shadow-launches": "node src/scripts/testShadowLaunches.js",
     "test-x": "node src/scripts/testXProvider.js",
+    "test-x-throttle": "node src/scripts/testXThrottle.js",
     "test-x-launch": "node src/scripts/testXLaunchScoring.js",
     "test-tiktok-launch-filter": "node src/scripts/testTikTokLaunchFilter.js",
     "test-tiktok-launch-path": "node src/scripts/testTikTokLaunchPath.js"
