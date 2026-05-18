@@ -12,6 +12,7 @@ import { formatCount } from "../tokens.js";
 import { buildNarrativeClusters, getStrongNarrativeClusters } from "../narrativeClusters.js";
 import { prepareDryRunPumpPortalLaunch } from "../launchers/dryRunPumpPortalProvider.js";
 import { preparePumpPortalDeployment } from "../launchers/pumpPortalProvider.js";
+import { convertTikTokTrendToLaunchCluster, evaluateTikTokLaunchCandidate } from "../tiktokLaunchAdapter.js";
 
 const MAX_PREVIEW = parseInt(process.env.DRY_RUN_LIMIT || "10", 10);
 
@@ -89,6 +90,15 @@ for (const trend of trends.slice(0, MAX_PREVIEW)) {
     console.log(`Launch Worthiness: ${trend.launchWorthinessScore}/100 | Archetype: ${trend.marketArchetype} | Recommendation: ${trend.launchRecommendation}`);
   } else {
     console.log(`Views/hr: ${formatCount(trendScore.metrics.viewsPerHour)} | Videos: ${formatCount(trend.videoCount)}`);
+    const tiktokEval = evaluateTikTokLaunchCandidate(trend);
+    console.log(`TikTok Dry-Run: ${tiktokEval.qualified ? "qualified" : "rejected"} | readiness ${tiktokEval.metrics.launchReadiness}/100 | identity ${tiktokEval.metrics.memeticIdentityScore}/100`);
+    if (tiktokEval.qualified) {
+      const cluster = convertTikTokTrendToLaunchCluster(tiktokEval.trend);
+      const shadowLaunch = prepareDryRunPumpPortalLaunch(cluster);
+      console.log(`TikTok PumpPortal: ${shadowLaunch.title} ($${shadowLaunch.ticker}) | image ${shadowLaunch.payload.sourceMediaType || shadowLaunch.payload.visualReuseMode}`);
+    } else if (tiktokEval.rejections.length > 0) {
+      console.log(`TikTok Reject: ${tiktokEval.rejections.slice(0, 4).join(", ")}`);
+    }
   }
   console.log(`Trend Score: ${trendScore.total}/100`);
   console.log(`Launch Score: ${launchScore.total}/100 (${launchScore.label})`);

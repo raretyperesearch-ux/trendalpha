@@ -2,6 +2,7 @@ const WEAK_WORDS = new Set([
   "the", "this", "that", "viral", "meme", "coin", "token", "pump", "fun",
   "official", "real", "new", "launch", "trend", "post", "video", "clip",
   "went", "goes", "going", "says", "said", "watch", "caught", "camera",
+  "curious", "curiosity", "internet",
 ]);
 
 const GENERIC_TICKERS = new Set(["AI", "INU", "COIN", "PUMP", "MOON", "BASE", "SOL", "MEME", "VIRAL", "TREND"]);

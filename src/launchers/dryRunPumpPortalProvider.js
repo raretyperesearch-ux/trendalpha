@@ -41,6 +41,9 @@ export class DryRunPumpPortalProvider {
       extractedPhrase: cluster.extractedPhrase || artifact.extractedPhrase || "",
       emotionalTexture: cluster.emotionalTexture || artifact.emotionalTexture || "internet curiosity",
       identityCompressionSummary: cluster.identityCompressionSummary || artifact.identityCompressionSummary || "",
+      tiktokLaunchMetrics: cluster.tiktokLaunchMetrics || null,
+      tiktokLaunchReasons: cluster.tiktokLaunchReasons || null,
+      tiktokLaunchRejections: cluster.tiktokLaunchRejections || null,
       lifecycleState: getDryRunLifecycleState(cluster),
       token: {
         name: title,
@@ -273,6 +276,7 @@ function getRelatedPostReferences(cluster) {
     id: post.id,
     sourcePlatform: post.sourcePlatform,
     sourceUrl: post.sourceUrl,
+    name: post.name || "",
     author: post.author,
     sourceMedia: post.sourceMedia || null,
     sourceMediaUrl: post.sourceMediaUrl || "",

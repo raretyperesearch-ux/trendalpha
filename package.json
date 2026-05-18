@@ -9,6 +9,7 @@
     "dev": "node --watch src/index.js",
     "scan": "node src/scripts/runScan.js",
     "scan:dry": "node src/scripts/scanDryRun.js",
+    "test-scan-dry-run": "node src/scripts/scanDryRun.js",
     "dashboard": "node src/scripts/dashboard.js",
     "mission-control": "node src/scripts/missionControl.js",
     "test-alert": "node src/scripts/testAlert.js",
@@ -40,7 +41,9 @@
     "test-telegram-alert": "node src/scripts/testTelegramAlert.js",
     "test-shadow-launches": "node src/scripts/testShadowLaunches.js",
     "test-x": "node src/scripts/testXProvider.js",
-    "test-x-launch": "node src/scripts/testXLaunchScoring.js"
+    "test-x-launch": "node src/scripts/testXLaunchScoring.js",
+    "test-tiktok-launch-filter": "node src/scripts/testTikTokLaunchFilter.js",
+    "test-tiktok-launch-path": "node src/scripts/testTikTokLaunchPath.js"
   },
   "dependencies": {
     "@solana/web3.js": "^1.98.4",

@@ -877,8 +877,36 @@ export function formatDryRunLaunchAlert(shadowLaunch) {
   const payload = shadowLaunch.payload || {};
   const narrative = payload.narrative || {};
   const timing = payload.launchTiming || {};
+  const isTikTok = payload.sourcePlatform === "tiktok";
+  const imageSource = payload.metadata?.imageUpload?.imageSource ||
+    (payload.sourceMediaType === "cover_image"
+      ? "TIKTOK COVER"
+      : payload.sourceMediaUrl
+        ? "SOURCE POST MEDIA"
+        : "GENERATED");
 
   let msg = `🐷 <b>OINK PREPARE LAUNCH</b>\n\n`;
+  msg += `<b>$${escapeHtml(shadowLaunch.ticker)}</b>\n`;
+  msg += `${escapeHtml(shadowLaunch.title)}\n\n`;
+  if (isTikTok) {
+    const tiktokTrendName = payload.relatedPosts?.[0]?.name || narrative.clusterName || shadowLaunch.title;
+    msg += `Source:\n<b>TikTok</b>\n\n`;
+    msg += `Trend:\n<b>${escapeHtml(tiktokTrendName)}</b>\n\n`;
+    msg += `Image:\n<b>${escapeHtml(imageSource)}</b>\n\n`;
+    msg += `<b>Why It Qualified:</b>\n`;
+    const reasons = payload.tiktokLaunchReasons || shadowLaunch.launchReasoning || [];
+    for (const reason of reasons.slice(0, 4)) msg += `• ${escapeHtml(reason)}\n`;
+    msg += `\n`;
+    msg += `Deployment:\n<b>DRY RUN</b>\n\n`;
+    msg += `<code>`;
+    msg += `Readiness: ${Number(shadowLaunch.launchReadiness || 0)}/100\n`;
+    msg += `Identity:  ${Number(payload.tiktokLaunchMetrics?.memeticIdentityScore || shadowLaunch.identity?.selected?.identityCohesionScore || 0)}/100\n`;
+    msg += `Swarm:     ${Number(shadowLaunch.swarmPressure || 0)}/100\n`;
+    msg += `Saturation:${Number(payload.tiktokLaunchMetrics?.saturationPressure || 0)}/100`;
+    msg += `</code>\n\n`;
+    msg += `<i>No transaction submitted. No wallet used.</i>`;
+    return constrainTelegramMessage(msg);
+  }
   msg += `Narrative:\n<b>${escapeHtml(narrative.clusterName || shadowLaunch.title)}</b>\n\n`;
   msg += `Ticker:\n<b>$${escapeHtml(shadowLaunch.ticker)}</b>\n\n`;
   msg += `Narrative Phase:\n<b>${escapeHtml(formatLabel(shadowLaunch.narrativePhase || narrative.phase || "forming"))}</b>\n\n`;
