@@ -341,11 +341,13 @@ Wallet isolation is modeled with strict roles:
 
 These are capability boundaries only. OINK uses env-based key stubs for architecture tests, keeps `SIGNER_DISABLED=true` by default, and does not load funded private keys.
 
-Public wallet addresses can be configured for diagnostics with `DEPLOY_WALLET_PUBLIC_KEY`, `TREASURY_WALLET_PUBLIC_KEY`, `FEE_WALLET_PUBLIC_KEY`, and `MONITORING_WALLET_PUBLIC_KEY`. OINK validates Solana public key format, warns when the same address is reused across roles, and only hard-fails wallet config when real launches are explicitly enabled.
+Public wallet addresses can be configured for diagnostics with `DEPLOY_WALLET_PUBLIC_KEY`, `TREASURY_WALLET_PUBLIC_KEY`, `FEE_WALLET_PUBLIC_KEY`, and `MONITORING_WALLET_PUBLIC_KEY`. OINK validates Solana public key format and warns when the same address is reused across roles.
+
+For V1 live launch testing, only the deploy wallet is mandatory. The deploy and treasury wallet may intentionally be the same wallet, because creator fees and treasury accumulation can flow through the deploy wallet first. `FEE_WALLET_PUBLIC_KEY` and `MONITORING_WALLET_PUBLIC_KEY` may be empty, and `FEE_WALLET_PUBLIC_KEY` may also reuse the treasury wallet. These choices produce diagnostics, but they do not block V1 live readiness.
 
 `DEPLOY_WALLET_PRIVATE_KEY` is optional and must only be configured in secured Railway env storage when live signing is intentionally tested later. It accepts a Solana 64-byte secret key as either a JSON byte array or base58 string. OINK never prints, logs, persists, or exposes the secret; diagnostics only report whether a key is present, whether the derived public key matches, and whether the hard safety gates are closed.
 
-Live deploy signing is refused unless all gates are open: `ENABLE_REAL_LAUNCHES=true`, `SIGNER_DISABLED=false`, `DEPLOY_WALLET_PRIVATE_KEY` exists, the derived public key matches `DEPLOY_WALLET_PUBLIC_KEY`, wallet role config is valid, and the signing role is `deploy_wallet`.
+Live deploy signing is refused unless all gates are open: `ENABLE_REAL_LAUNCHES=true`, `SIGNER_DISABLED=false`, `DEPLOY_WALLET_PRIVATE_KEY` exists, the derived public key matches `DEPLOY_WALLET_PUBLIC_KEY`, the deploy public key is valid, and the signing role is `deploy_wallet`.
 
 The observation queue keeps dry-run launches reviewable before autonomy. Candidates can be queued, approved, rejected, expired, voted on for launch quality, and marked with `would_launch_again` calibration data.
 
