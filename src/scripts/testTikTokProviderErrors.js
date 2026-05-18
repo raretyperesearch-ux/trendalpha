@@ -32,9 +32,11 @@ console.log(`Upstream fatal: ${upstream.fatal ? "yes" : "no"}`);
 console.log(`Upstream index: ${upstream.upstreamIndexError ? "yes" : "no"}`);
 console.log(`Quota/plan fatal: ${quota.fatal ? "yes" : "no"}`);
 console.log(`Unknown fatal: ${unknown.fatal ? "yes" : "no"}`);
+console.log(`Body snippet present: ${upstream.bodySnippet.includes("no available es index") ? "yes" : "no"}`);
 
 if (!upstream.upstreamIndexError || !upstream.fatal) process.exitCode = 1;
 if (!quota.quotaOrPlanInvalid || !quota.fatal) process.exitCode = 1;
 if (unknown.fatal) process.exitCode = 1;
+if (!upstream.bodySnippet.includes("no available es index")) process.exitCode = 1;
 if (!isFatalTikTokUpstreamError({ msg: "no available es index" })) process.exitCode = 1;
 if (!isFatalTikTokErrorMessage("no available es index")) process.exitCode = 1;

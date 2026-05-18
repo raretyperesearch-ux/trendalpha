@@ -18,6 +18,8 @@ process.env.SIGNER_DISABLED = "true";
 process.env.DEPLOY_WALLET_PUBLIC_KEY = deploy.publicKey.toBase58();
 process.env.PINATA_JWT = "test-pinata-jwt";
 process.env.LIVE_METADATA_STRICT_MODE = "true";
+process.env.METADATA_UPLOAD_PROVIDER = "pinata";
+process.env.ASSET_HOSTING_PROVIDER = "pinata";
 
 const { prepareHostedPumpPortalMetadata } = await import("../metadataAssets.js");
 

@@ -71,6 +71,8 @@ export class PinataMetadataUploadProvider extends MetadataUploadProvider {
       uploaded: true,
       hostedImageUrl: `https://ipfs.io/ipfs/${uploaded.cid}`,
       cid: uploaded.cid,
+      imageCid: uploaded.cid,
+      imageUri: `https://ipfs.io/ipfs/${uploaded.cid}`,
       storageKey: uploaded.cid,
       byteSize: buffer.length,
       mimeType,
@@ -92,6 +94,8 @@ export class PinataMetadataUploadProvider extends MetadataUploadProvider {
       uploaded: true,
       metadataUrl: `https://ipfs.io/ipfs/${uploaded.cid}`,
       cid: uploaded.cid,
+      metadataCid: uploaded.cid,
+      metadataUri: `https://ipfs.io/ipfs/${uploaded.cid}`,
       storageKey: uploaded.cid,
       byteSize: buffer.length,
       note: "Uploaded metadata JSON to Pinata/IPFS.",
@@ -154,7 +158,7 @@ export class PumpPortalMetadataUploadProvider extends MetadataUploadProvider {
 }
 
 export function createMetadataUploadProvider(options = {}) {
-  const provider = options.provider || config.metadata.uploadProvider || "dry_wire";
+  const provider = normalizeMetadataProvider(options.provider || config.metadata.uploadProvider || "dry_wire");
   if (provider === "pinata" || provider === "pinata_ipfs") return new PinataMetadataUploadProvider(options);
   if (provider === "arweave") return new ArweaveMetadataUploadProvider(options);
   if (provider === "pumpportal" || provider === "pumpportal_upload") return new PumpPortalMetadataUploadProvider(options);
@@ -166,8 +170,15 @@ export class ImageDownloadRehostPipeline {
     this.downloadRemoteImages = options.downloadRemoteImages ?? config.metadata.downloadRemoteImages;
     this.liveMode = options.liveMode ?? Boolean(options.enableRealLaunches);
     this.strictMode = options.strictMode ?? config.metadata.liveStrictMode;
-    this.uploadProvider = options.uploadProvider || createMetadataUploadProvider(options);
-    this.assetHostingProvider = options.assetHostingProvider || createAssetHostingProvider(options.assetHosting || options);
+    const uploadOptions = {
+      ...options,
+      provider: normalizeMetadataProvider(options.provider || options.uploadProvider?.provider || config.metadata.uploadProvider),
+    };
+    this.uploadProvider = options.uploadProvider || createMetadataUploadProvider(uploadOptions);
+    this.assetHostingProvider = options.assetHostingProvider || createAssetHostingProvider(options.assetHosting || {
+      ...options,
+      provider: normalizeAssetHostingProvider(options.assetHostingProviderName || config.metadata.assetHostingProvider),
+    });
   }
 
   async prepare({ deploymentAttempt }) {
@@ -262,6 +273,10 @@ export class ImageDownloadRehostPipeline {
         uploadedImageUrl: upload?.hostedImageUrl || "",
         thumbnailUrl: hostedAssets?.thumbnail?.url || "",
         metadataUrl: metadataUpload?.metadataUrl || "",
+        imageCid: upload?.imageCid || upload?.cid || "",
+        metadataCid: metadataUpload?.metadataCid || metadataUpload?.cid || "",
+        imageUri: upload?.imageUri || upload?.hostedImageUrl || "",
+        metadataUri: metadataUpload?.metadataUri || metadataUpload?.metadataUrl || "",
         metadataFrozen: Boolean(frozenPackage),
         frozenPackageHash: frozenPackage?.packageHash || "",
         hash: imageReview.hash,
@@ -330,8 +345,17 @@ export class ImageDownloadRehostPipeline {
 
 export async function prepareHostedPumpPortalMetadata(deploymentAttempt, options = {}) {
   const liveMode = options.liveMode ?? (deploymentAttempt.mode === "LIVE_DISABLED_SKELETON" || deploymentAttempt.payload?.mode === "live_skeleton");
-  const provider = options.provider || (liveMode && config.pinata.jwtPresent ? "pinata" : undefined);
+  const provider = options.provider || resolveMetadataUploadProvider({ liveMode });
   return new ImageDownloadRehostPipeline({ ...options, provider, liveMode }).prepare({ deploymentAttempt });
+}
+
+export function resolveMetadataUploadProvider({ liveMode = false } = {}) {
+  const configured = normalizeMetadataProvider(config.metadata.uploadProvider);
+  const assetProvider = normalizeAssetHostingProvider(config.metadata.assetHostingProvider);
+  if (liveMode && config.pinata.jwtPresent && (configured === "pinata" || configured === "pinata_ipfs" || assetProvider === "pinata" || config.launch.enableRealLaunches)) {
+    return "pinata";
+  }
+  return configured;
 }
 
 export function buildPumpPortalMetadataJson({ metadata = {}, deploymentAttempt = {}, hostedImageUrl = "", imageReview = {} }) {
@@ -602,6 +626,20 @@ function extensionFromMime(mimeType = "") {
   if (mimeType === "image/webp") return "webp";
   if (mimeType === "image/gif") return "gif";
   return "bin";
+}
+
+function normalizeMetadataProvider(provider = "") {
+  const value = String(provider || "dry_wire").trim().toLowerCase();
+  if (value === "pinata" || value === "pinata_ipfs" || value === "ipfs") return "pinata";
+  if (value === "dry-wire") return "dry_wire";
+  return value || "dry_wire";
+}
+
+function normalizeAssetHostingProvider(provider = "") {
+  const value = String(provider || "local").trim().toLowerCase();
+  if (value === "pinata" || value === "pinata_ipfs" || value === "ipfs") return "pinata";
+  if (value === "dry-wire") return "dry_wire";
+  return value || "local";
 }
 
 function createDerivativePng({ hash, kind, size }) {

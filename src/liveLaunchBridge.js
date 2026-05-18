@@ -55,6 +55,7 @@ export async function maybeExecuteLiveLaunchFromScan(deploymentAttempt, {
     return { status: "skipped", decision };
   }
   if (!decision.allowed) {
+    console.log(`   🛑 live_launch_blocked_reasons=${JSON.stringify(decision.blocks)}`);
     console.log(`   🛑 Live launch blocked for $${deploymentAttempt?.ticker || "UNKNOWN"}:`);
     for (const block of decision.blocks) console.log(`      - ${block}`);
     return { status: "blocked", decision };

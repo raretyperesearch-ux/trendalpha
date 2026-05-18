@@ -234,6 +234,10 @@ export const config = {
     tiktok: optionalBool("ENABLE_TIKTOK_PROVIDER", true),
     x: optionalBool("ENABLE_X_PROVIDER", true),
   },
+  tiktok: {
+    rapidApiHost: optional("TIKTOK_RAPIDAPI_HOST", "tiktok-creative-center-api.p.rapidapi.com"),
+    maxPagesPerScan: optionalInt("TIKTOK_MAX_PAGES_PER_SCAN", "1"),
+  },
   x: {
     bearerToken: optional("X_BEARER_TOKEN", ""),
     searchQueries: optionalList("X_SEARCH_QUERIES"),

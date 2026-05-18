@@ -11,7 +11,8 @@
 import https from "node:https";
 
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || "";
-const RAPIDAPI_HOST = "tiktok-creative-center-api.p.rapidapi.com";
+const RAPIDAPI_HOST = process.env.TIKTOK_RAPIDAPI_HOST || "tiktok-creative-center-api.p.rapidapi.com";
+const MAX_PAGES_PER_SCAN = Math.max(1, Number.parseInt(process.env.TIKTOK_MAX_PAGES_PER_SCAN || "1", 10) || 1);
 
 /**
  * Fetch with full buffering for large API responses
@@ -67,7 +68,7 @@ async function fetchTrendingHashtags(page = 1, limit = 50) {
     const data = response.json;
 
     if (data.code !== 0 || !data.data?.list) {
-      logTikTokApiError({ endpointPath: path, status: response.status, data });
+      logTikTokApiError({ endpointPath: path, status: response.status, data, body: response.body });
       return {
         list: [],
         fatal: isFatalTikTokUpstreamError(data),
@@ -158,7 +159,7 @@ async function fetchTrendingSongs(page = 1, limit = 20) {
           return data.data.list;
         }
         if (data.code !== 0) {
-          logTikTokApiError({ endpointPath: path, status: response.status, data });
+          logTikTokApiError({ endpointPath: path, status: response.status, data, body: response.body });
           if (isFatalTikTokUpstreamError(data)) break;
         }
       } catch (e) {
@@ -234,12 +235,15 @@ export async function fetchTrends() {
   try {
     const allHashtags = [];
     let upstreamIndexErrors = 0;
-    for (let page = 1; page <= 5; page += 1) {
+    for (let page = 1; page <= MAX_PAGES_PER_SCAN; page += 1) {
       const result = await fetchTrendingHashtags(page, 20);
       allHashtags.push(...result.list);
       if (result.fatal) {
         upstreamIndexErrors += 1;
         console.warn(`    ⚠️  Stopping TikTok pagination after fatal upstream error on page ${page}: ${result.reason}`);
+        if (isFatalTikTokErrorMessage(result.reason)) {
+          console.warn("    ⚠️  TikTok RapidAPI provider appears broken or upstream unavailable.");
+        }
         break;
       }
       if (result.list.length === 0 && page === 1 && isFatalTikTokErrorMessage(result.reason)) {
@@ -338,6 +342,7 @@ export function getTikTokApiErrorDiagnostics({ endpointPath = "unknown", status 
     upstreamIndexError,
     quotaOrPlanInvalid,
     fatal: upstreamIndexError || quotaOrPlanInvalid,
+    bodySnippet: String(data ? JSON.stringify(data) : err?.body || "").slice(0, 500),
   };
 }
 
@@ -349,8 +354,8 @@ export function isFatalTikTokErrorMessage(message = "") {
   return getTikTokApiErrorDiagnostics({ err: { message } }).fatal;
 }
 
-function logTikTokApiError({ endpointPath, status, data, err }) {
-  const diagnostics = getTikTokApiErrorDiagnostics({ endpointPath, status, data, err });
+function logTikTokApiError({ endpointPath, status, data, err, body }) {
+  const diagnostics = getTikTokApiErrorDiagnostics({ endpointPath, status, data, err: err || { body } });
   const planHint = diagnostics.quotaOrPlanInvalid ? " rapidapi_quota_or_plan_invalid=true" : "";
   const upstreamHint = diagnostics.upstreamIndexError ? " upstream_index_error=true" : "";
   console.error(
@@ -358,4 +363,10 @@ function logTikTokApiError({ endpointPath, status, data, err }) {
     `code=${diagnostics.code || "n/a"} path=${diagnostics.endpointPath} ` +
     `msg="${diagnostics.message}"${planHint}${upstreamHint}`
   );
+  if (diagnostics.bodySnippet) {
+    console.error(`       response_body="${diagnostics.bodySnippet}"`);
+  }
+  if (diagnostics.upstreamIndexError || diagnostics.quotaOrPlanInvalid) {
+    console.warn("    ⚠️  TikTok RapidAPI provider appears broken/upstream unavailable or plan-limited.");
+  }
 }

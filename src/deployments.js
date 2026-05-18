@@ -1,7 +1,7 @@
 import { preparePumpPortalDeployment, preparePumpPortalMetadataPackage } from "./launchers/pumpPortalProvider.js";
 import { saveDeploymentAttempt, saveLaunchAsset } from "./db.js";
 import { sendDeploymentReadyAlert, sendMetadataReadyAlert } from "./telegram.js";
-import { buildIdempotencyKey, createDeploymentStateMachine, classifyDeploymentFailure } from "./deploymentStateMachine.js";
+import { buildIdempotencyKey, createDeploymentStateMachine, classifyDeploymentFailure, canTransition } from "./deploymentStateMachine.js";
 import { evaluateLaunchSaturationSafety } from "./saturationSafety.js";
 import { simulateTransaction } from "./transactionSimulation.js";
 import { createSignerIsolationManager } from "./walletIsolation.js";
@@ -46,25 +46,45 @@ export async function prepareAndPersistDeploymentAttempt(shadowLaunch, {
   const hostedMetadata = await prepareHostedMetadataForAttempt(deploymentAttempt);
   if (hostedMetadata) {
     deploymentAttempt.payload.hostedMetadata = hostedMetadata;
-    if (hostedMetadata.metadataValidation.valid) {
-      if (machine.state !== "failed") machine.transition("metadata_ready", { reason: "metadata_json_ready" });
+    if (metadataPackageIsReady(hostedMetadata)) {
+      safeTransition(machine, "metadata_ready", { reason: "metadata_json_ready" });
       deploymentAttempt.payload.metadata.image = hostedMetadata.metadataJson.image;
       deploymentAttempt.payload.metadata.hostedMetadataUrl = hostedMetadata.metadataUpload?.metadataUrl || "";
+      deploymentAttempt.payload.metadata.hostedImageUrl = hostedMetadata.metadataJson.image || "";
+      deploymentAttempt.payload.metadata.imageCid = hostedMetadata.imageUpload?.cid || "";
+      deploymentAttempt.payload.metadata.metadataCid = hostedMetadata.metadataUpload?.cid || "";
+      deploymentAttempt.imageCid = hostedMetadata.imageUpload?.cid || hostedMetadata.imageUpload?.imageCid || "";
+      deploymentAttempt.metadataCid = hostedMetadata.metadataUpload?.cid || hostedMetadata.metadataUpload?.metadataCid || "";
+      deploymentAttempt.imageUri = hostedMetadata.metadataJson.image || "";
+      deploymentAttempt.metadataUri = hostedMetadata.metadataUpload?.metadataUrl || "";
       deploymentAttempt.payload.metadata.imageUpload = hostedMetadata.launchAsset;
       deploymentAttempt.payload.finalMetadataPreview = buildFinalMetadataPreview(deploymentAttempt, hostedMetadata);
-      if (machine.state !== "failed") machine.transition("assets_hosted", { reason: "hosted_assets_ready" });
+      safeTransition(machine, "assets_hosted", { reason: "hosted_assets_ready" });
     } else if (machine.state !== "failed") {
-      machine.fail("metadata_failure", "Hosted metadata validation failed", { errors: hostedMetadata.metadataValidation.errors });
+      machine.fail("metadata_failure", "Hosted metadata validation failed", {
+        blockReason: "metadata_not_hosted",
+        errors: hostedMetadata.metadataValidation.errors,
+        imageErrors: hostedMetadata.imageValidation?.errors || [],
+        provider: getMetadataProviderName(),
+      });
     }
   } else if (machine.state !== "failed") {
     machine.fail("metadata_failure", "Hosted metadata could not be prepared", {
       provider: getMetadataProviderName(),
+      blockReason: "metadata_not_hosted",
     });
   }
-  if (machine.state !== "failed") machine.transition("payload_ready", { reason: "provider_payload_ready" });
-  if (machine.state !== "failed" && deploymentAttempt.validation.valid) machine.transition("validation_passed", { reason: "payload_validation_passed" });
+  if (machine.state !== "failed" && machine.state !== "assets_hosted") {
+    machine.fail("metadata_failure", "Hosted metadata not ready for payload preparation", {
+      provider: getMetadataProviderName(),
+      blockReason: "metadata_not_hosted",
+      currentState: machine.state,
+    });
+  }
+  safeTransition(machine, "payload_ready", { reason: "provider_payload_ready" });
+  if (machine.state !== "failed" && deploymentAttempt.validation.valid) safeTransition(machine, "validation_passed", { reason: "payload_validation_passed" });
   else if (machine.state !== "failed") machine.fail("validation_failure", "Payload validation failed", { errors: deploymentAttempt.validation.errors });
-  if (machine.state !== "failed") machine.transition("deployment_prepared", { reason: "dry_wire_deployment_prepared" });
+  safeTransition(machine, "deployment_prepared", { reason: "dry_wire_deployment_prepared" });
   const signer = createSignerIsolationManager();
   const signature = signer.simulateSign({ role: "deploy_wallet", payload: deploymentAttempt.payload });
   deploymentAttempt.walletDiagnostics = signer.getDiagnostics();
@@ -150,15 +170,21 @@ function evaluateFinalLaunchGate(deploymentAttempt) {
 async function prepareHostedMetadataForAttempt(deploymentAttempt) {
   const provider = getMetadataProviderName();
   try {
+    console.log(
+      `   🧾 metadata_provider=${provider} ` +
+      `pinata_jwt_present=${config.pinata.jwtPresent ? "true" : "false"} ` +
+      "hosted_metadata_ready=pending"
+    );
     if (!deploymentAttempt.payload?.metadata?.imageUpload) {
-      console.log(`   🧾 metadata_provider=${provider} hosted_metadata_ready=false`);
+      console.log(`   🧾 metadata_provider=${provider} pinata_jwt_present=${config.pinata.jwtPresent ? "true" : "false"} hosted_metadata_ready=false`);
       return null;
     }
     const hosted = await preparePumpPortalMetadataPackage(deploymentAttempt);
     const loggedProvider = normalizeMetadataProviderName(hosted.report?.uploadProvider || provider);
     console.log(
       `   🧾 metadata_provider=${loggedProvider} ` +
-      `hosted_metadata_ready=${hosted.metadataValidation.valid ? "true" : "false"}`
+      `pinata_jwt_present=${config.pinata.jwtPresent ? "true" : "false"} ` +
+      `hosted_metadata_ready=${metadataPackageIsReady(hosted) ? "true" : "false"}`
     );
     if (hosted.metadataValidation.valid) {
       console.log(`   🖼️  Hosted metadata prepared: ${hosted.metadataUpload?.metadataUrl || "dry-wire"}`);
@@ -167,7 +193,7 @@ async function prepareHostedMetadataForAttempt(deploymentAttempt) {
     console.log(`   ⚠️  Hosted metadata not ready: ${hosted.metadataValidation.errors.join(", ") || hosted.imageValidation.errors.join(", ")}`);
     return hosted;
   } catch (err) {
-    console.warn(`   ⚠️  Hosted metadata preparation skipped: metadata_provider=${provider} hosted_metadata_ready=false ${err.message}`);
+    console.warn(`   ⚠️  Hosted metadata preparation skipped: metadata_provider=${provider} pinata_jwt_present=${config.pinata.jwtPresent ? "true" : "false"} hosted_metadata_ready=false ${err.message}`);
     deploymentAttempt.failureClass = classifyDeploymentFailure(err);
     return null;
   }
@@ -181,6 +207,25 @@ function getMetadataProviderName() {
 function normalizeMetadataProviderName(provider = "") {
   if (provider === "pinata_ipfs") return "pinata";
   return provider || "dry_wire";
+}
+
+function metadataPackageIsReady(hostedMetadata) {
+  return Boolean(
+    hostedMetadata?.metadataValidation?.valid &&
+    hostedMetadata?.metadataUpload?.metadataUrl &&
+    hostedMetadata?.metadataJson?.image
+  );
+}
+
+function safeTransition(machine, to, options = {}) {
+  if (machine.state === "failed") return null;
+  if (!canTransition(machine.state, to)) {
+    return machine.fail("metadata_failure", `Blocked invalid deployment transition: ${machine.state} -> ${to}`, {
+      blockReason: "metadata_not_hosted",
+      attemptedTransition: `${machine.state}->${to}`,
+    });
+  }
+  return machine.transition(to, options);
 }
 
 function logDeploymentAttempt(attempt) {
