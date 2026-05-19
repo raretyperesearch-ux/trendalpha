@@ -34,6 +34,7 @@
     "test-pumpportal-local-flow": "node src/scripts/testPumpPortalLocalFlow.js",
     "test-pumpportal-metadata": "node src/scripts/testPumpPortalMetadata.js",
     "test-pinata-upload": "node src/scripts/testPinataUpload.js",
+    "test-pinata-live-upload": "node src/scripts/testPinataLiveUpload.js",
     "test-live-launch-gates": "node src/scripts/testLiveLaunchGates.js",
     "test-scan-live-launch-bridge": "node src/scripts/testScanLiveLaunchBridge.js",
     "test-launch-confirmation": "node src/scripts/testLaunchConfirmation.js",
