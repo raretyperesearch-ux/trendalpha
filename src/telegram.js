@@ -31,13 +31,16 @@ export function initBot() {
 
   bot.command("start", (ctx) =>
     ctx.reply(
-      "🐷 OINK\n\nTikTok attention → internet-native markets.\n\nJoin the channel for alerts!",
-      { parse_mode: "Markdown" }
+      appendTelegramFooter("🐷 <b>OINK</b>\n\nTikTok attention → internet-native markets.\n\nJoin the channel for alerts!"),
+      { parse_mode: "HTML", disable_web_page_preview: true }
     )
   );
 
   bot.command("status", (ctx) =>
-    ctx.reply("✅ OINK is running. Scanning every 15 minutes.")
+    ctx.reply(appendTelegramFooter("✅ OINK is running. Scanning every 15 minutes."), {
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+    })
   );
 
   // ---- REFRESH BUTTON HANDLER ----
@@ -73,7 +76,7 @@ export function initBot() {
         type: "refresh",
         refreshId: hashtagName,
       });
-      await ctx.editMessageText(message, {
+      await ctx.editMessageText(appendTelegramFooter(message), {
         parse_mode: "HTML",
         disable_web_page_preview: true,
         ...(keyboard ? { reply_markup: keyboard } : {}),
@@ -446,7 +449,7 @@ async function sendTelegramWithFallback({ label, richHtml, compactHtml, minimalT
   const attempts = [
     {
       mode: "rich",
-      text: constrainTelegramMessage(richHtml),
+      text: constrainTelegramMessage(appendTelegramFooter(richHtml)),
       options: {
         parse_mode: "HTML",
         disable_web_page_preview: true,
@@ -455,7 +458,7 @@ async function sendTelegramWithFallback({ label, richHtml, compactHtml, minimalT
     },
     {
       mode: "rich_no_buttons",
-      text: constrainTelegramMessage(richHtml),
+      text: constrainTelegramMessage(appendTelegramFooter(richHtml)),
       options: {
         parse_mode: "HTML",
         disable_web_page_preview: true,
@@ -463,7 +466,7 @@ async function sendTelegramWithFallback({ label, richHtml, compactHtml, minimalT
     },
     {
       mode: "compact",
-      text: constrainTelegramMessage(compactHtml || richHtml),
+      text: constrainTelegramMessage(appendTelegramFooter(compactHtml || richHtml)),
       options: {
         parse_mode: "HTML",
         disable_web_page_preview: true,
@@ -471,8 +474,9 @@ async function sendTelegramWithFallback({ label, richHtml, compactHtml, minimalT
     },
     {
       mode: "minimal",
-      text: constrainTelegramMessage(minimalText || htmlToPlainText(compactHtml || richHtml), { maxChars: 3500 }),
+      text: constrainTelegramMessage(appendTelegramFooter(minimalText || htmlToPlainText(compactHtml || richHtml)), { maxChars: 3500 }),
       options: {
+        parse_mode: "HTML",
         disable_web_page_preview: true,
       },
     },
@@ -1366,6 +1370,21 @@ export function buildSafeInlineKeyboard(alert = null) {
 
 export function getTelegramAlertMetrics() {
   return { ...alertMetrics };
+}
+
+export function appendTelegramFooter(message = "") {
+  const text = String(message || "");
+  const footer = config.telegram.footer || {};
+  if (!footer.enabled) return text;
+
+  const footerUrl = validateHttpsUrl(footer.url);
+  if (!footerUrl) return text;
+
+  const label = String(footer.linkLabel || "Padre").trim() || "Padre";
+  if (text.includes(footerUrl) || text.includes(`>${label}</a>`) || text.includes(">Padre</a>")) return text;
+
+  const footerText = String(footer.text || "Save 40% on all fees:").trim();
+  return `${text.trimEnd()}\n\n<b>${escapeHtml(footerText)}</b>\n<a href="${escapeHtml(footerUrl)}">${escapeHtml(label)}</a>`;
 }
 
 export async function simulateTelegramFallbackForTest(api, payload) {

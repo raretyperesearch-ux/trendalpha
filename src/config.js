@@ -142,6 +142,12 @@ export const config = {
     botToken: required("TELEGRAM_BOT_TOKEN"),
     channelId: required("TELEGRAM_CHANNEL_ID"),
     safeMode: optionalBool("TELEGRAM_SAFE_MODE", true),
+    footer: {
+      enabled: optionalBool("TELEGRAM_FOOTER_ENABLED", true),
+      text: optional("TELEGRAM_FOOTER_TEXT", "Save 40% on all fees:"),
+      linkLabel: optional("TELEGRAM_FOOTER_LINK_LABEL", "Padre"),
+      url: optional("TELEGRAM_FOOTER_URL", "https://trade.padre.gg/rk/raretype"),
+    },
   },
   supabase: {
     url: required("SUPABASE_URL"),
