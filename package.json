@@ -54,7 +54,8 @@
     "test-deployment-metadata-failure": "node src/scripts/testDeploymentMetadataFailure.js",
     "test-live-metadata-provider": "node src/scripts/testLiveMetadataProvider.js",
     "test-supabase-schema-diagnostics": "node src/scripts/testSupabaseSchemaDiagnostics.js",
-    "test-tiktok-provider-errors": "node src/scripts/testTikTokProviderErrors.js"
+    "test-tiktok-provider-errors": "node src/scripts/testTikTokProviderErrors.js",
+    "test-tiktok-live-provider": "node src/scripts/testTikTokLiveProvider.js"
   },
   "dependencies": {
     "@solana/web3.js": "^1.98.4",
