@@ -141,6 +141,9 @@ export const config = {
   telegram: {
     botToken: required("TELEGRAM_BOT_TOKEN"),
     channelId: required("TELEGRAM_CHANNEL_ID"),
+    publicChannelId: optional("PUBLIC_TELEGRAM_CHANNEL_ID", optional("TELEGRAM_CHANNEL_ID", "")),
+    opsChannelId: optional("OPS_TELEGRAM_CHANNEL_ID", optional("TELEGRAM_CHANNEL_ID", "")),
+    sendOnlyMarketCreatedToPublic: optionalBool("SEND_ONLY_MARKET_CREATED_TO_PUBLIC", true),
     safeMode: optionalBool("TELEGRAM_SAFE_MODE", true),
     footer: {
       enabled: optionalBool("TELEGRAM_FOOTER_ENABLED", true),

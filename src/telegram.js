@@ -441,10 +441,11 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function sendTelegramWithFallback({ label, richHtml, compactHtml, minimalText, keyboardAlert = null, api = bot?.api }) {
+async function sendTelegramWithFallback({ label, richHtml, compactHtml, minimalText, keyboardAlert = null, api = bot?.api, route = "ops" }) {
   if (!api) throw new Error("Bot API unavailable");
 
   alertMetrics.attemptedAlerts++;
+  const channelId = getTelegramRouteChannel(route);
   const keyboard = buildSafeInlineKeyboard(keyboardAlert);
   const attempts = [
     {
@@ -494,7 +495,7 @@ async function sendTelegramWithFallback({ label, richHtml, compactHtml, minimalT
     for (let rateAttempt = 1; rateAttempt <= 3; rateAttempt++) {
       try {
         logTelegramPayload({ label, mode: attempt.mode, keyboard: attempt.options.reply_markup ? keyboard : null });
-        await api.sendMessage(config.telegram.channelId, attempt.text, attempt.options);
+        await api.sendMessage(channelId, attempt.text, attempt.options);
         alertMetrics.successfulAlerts++;
         if (previousError) {
           if (attempt.mode === "rich_no_buttons") alertMetrics.retryRecoveries++;
@@ -1178,9 +1179,56 @@ export async function sendLaunchCreatedAlert({ trend, launchBrief, launchedToken
     richHtml: message,
     compactHtml: message,
     minimalText: buildMinimalAlertText({ title: "OINK MARKET CREATED", name: launchedToken.name, score: null, sourceUrl: launchedToken.launchUrl }),
+    route: "public",
   });
   if (sent) console.log(`📤 Launch-created alert sent: ${launchedToken.name} (${launchedToken.ticker})`);
   return sent;
+}
+
+export async function sendManualLaunchPreview({ launch }) {
+  if (!bot) throw new Error("Bot not initialized — call initBot() first");
+  const message = formatManualLaunchPreview({ launch });
+  return sendTelegramWithFallback({
+    label: `manual-preview:${launch?.ticker || launch?.name || "launch"}`,
+    richHtml: message,
+    compactHtml: message,
+    minimalText: buildMinimalAlertText({ title: "OINK CURATED LAUNCH PREVIEW", name: `${launch?.name || "Unknown"} ($${launch?.ticker || "OINK"})`, score: null, sourceUrl: launch?.sourceUrl }),
+    route: "ops",
+  });
+}
+
+export async function sendOpsDiagnosticAlert({ title = "OINK OPS DIAGNOSTIC", lines = [], sourceUrl = "" } = {}) {
+  if (!bot) throw new Error("Bot not initialized — call initBot() first");
+  let message = `🐷 <b>${escapeHtml(title)}</b>\n\n`;
+  for (const line of lines) message += `• ${escapeHtml(line)}\n`;
+  if (sourceUrl) message += `\nSource:\n<a href="${escapeHtml(safeTelegramUrl(sourceUrl, "https://x.com"))}">link</a>\n`;
+  return sendTelegramWithFallback({
+    label: `ops:${title}`,
+    richHtml: message,
+    compactHtml: message,
+    minimalText: buildMinimalAlertText({ title, name: lines.join(" | ").slice(0, 160), score: null, sourceUrl }),
+    route: "ops",
+  });
+}
+
+export async function sendPublicMarketCreatedForTest(input) {
+  return sendLaunchCreatedAlert(input);
+}
+
+export function formatManualLaunchPreview({ launch = {} } = {}) {
+  let msg = `🐷 <b>OINK CURATED LAUNCH PREVIEW</b>\n\n`;
+  msg += `<b>$${escapeHtml(normalizeTicker(launch.ticker || "OINK"))}</b>\n`;
+  msg += `${escapeHtml(launch.name || "Unknown")}\n\n`;
+  msg += `Source:\n<b>${escapeHtml(formatLabel(launch.sourcePlatform || "manual"))}</b>\n`;
+  if (launch.sourceUrl) msg += `<a href="${escapeHtml(safeTelegramUrl(launch.sourceUrl, "https://x.com"))}">source link</a>\n`;
+  msg += `\nImage:\n${launch.imageUrl ? `<a href="${escapeHtml(safeTelegramUrl(launch.imageUrl, "https://ipfs.io"))}">image link</a>` : "missing"}\n\n`;
+  msg += `Narrative:\n${escapeHtml(launch.narrative || "Curated launch candidate")}\n\n`;
+  msg += `<code>`;
+  msg += `Route: OPS ONLY\n`;
+  msg += `Public: after confirmed market creation only\n`;
+  msg += `Mode: PumpPortal local flow`;
+  msg += `</code>`;
+  return constrainTelegramMessage(msg);
 }
 
 export function formatLaunchCreatedAlert({ trend, launchBrief, launchedToken, feeSummary = null }) {
@@ -1280,6 +1328,10 @@ function formatLabel(value) {
   return String(value || "")
     .replace(/_/g, " ")
     .toUpperCase();
+}
+
+function normalizeTicker(value = "") {
+  return String(value || "").replace(/[^a-z0-9]/gi, "").toUpperCase().slice(0, 10);
 }
 
 function formatRatio(value) {
@@ -1395,6 +1447,7 @@ export async function simulateTelegramFallbackForTest(api, payload) {
     minimalText: payload.minimalText,
     keyboardAlert: payload.keyboardAlert,
     api,
+    route: payload.route || "ops",
   });
 }
 
@@ -1411,6 +1464,11 @@ function validateHttpsUrl(url) {
 function logTelegramPayload({ label, mode, keyboard }) {
   const keyboardSize = keyboard ? JSON.stringify(keyboard.inline_keyboard || keyboard).length : 0;
   console.log(`   📦 Telegram payload ${label} mode=${mode} keyboardBytes=${keyboardSize}`);
+}
+
+function getTelegramRouteChannel(route = "ops") {
+  if (route === "public") return config.telegram.publicChannelId || config.telegram.channelId;
+  return config.telegram.opsChannelId || config.telegram.channelId;
 }
 
 function isRateLimitError(err) {
